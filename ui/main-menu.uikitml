@@ -1,0 +1,15 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="500" height="600" backgroundColor="#0a0a2e" borderRadius="20" padding="30" borderWidth="2" borderColor="#00ffff">
+  <text name="title" fontSize="42" fontWeight="bold" color="#00ffff" marginBottom="10">NEON ORBIT</text>
+  <text name="subtitle" fontSize="18" color="#8888ff" marginBottom="30">Gravity Slingshot Puzzle</text>
+
+  <container flexDirection="column" alignItems="center" gap="12" width="100%">
+    <text name="btn-play" fontSize="22" color="#00ff88" backgroundColor="#003322" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#00ff88" cursor="pointer">LAUNCH</text>
+    <text name="btn-modes" fontSize="22" color="#ffaa00" backgroundColor="#332200" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#ffaa00" cursor="pointer">GAME MODES</text>
+    <text name="btn-achievements" fontSize="22" color="#ff44ff" backgroundColor="#330033" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#ff44ff" cursor="pointer">ACHIEVEMENTS</text>
+    <text name="btn-stats" fontSize="22" color="#44aaff" backgroundColor="#001133" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#44aaff" cursor="pointer">STATS</text>
+    <text name="btn-settings" fontSize="22" color="#aaaaaa" backgroundColor="#222222" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#666666" cursor="pointer">SETTINGS</text>
+    <text name="btn-how" fontSize="22" color="#ffffff" backgroundColor="#222233" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#4444aa" cursor="pointer">HOW TO PLAY</text>
+  </container>
+
+  <text name="version" fontSize="12" color="#444466" marginTop="20">v1.0 - VR + Browser</text>
+</container>

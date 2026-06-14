@@ -1,0 +1,914 @@
+import {
+  World, createSystem, PanelUI, PanelDocument, UIKitDocument, UIKit, eq,
+  Follower, InputComponent,
+  Mesh, Group, SphereGeometry, CylinderGeometry, TorusGeometry, OctahedronGeometry,
+  BufferGeometry, Float32BufferAttribute,
+  MeshStandardMaterial, MeshBasicMaterial, LineBasicMaterial, PointsMaterial,
+  Points, LineSegments, Line, Color, Vector3,
+  AmbientLight, PointLight, DirectionalLight, Fog, AdditiveBlending, Object3D,
+  type Entity,
+} from '@iwsdk/core';
+
+// ---- Constants ----
+const G_CONSTANT = 6.0;
+const MAX_PROBES = 20;
+const PROBE_RADIUS = 0.08;
+const TARGET_RADIUS = 0.15;
+const TRAIL_LENGTH = 120;
+const MAX_DISTANCE = 30;
+const LAUNCH_MIN_SPEED = 2;
+const LAUNCH_MAX_SPEED = 12;
+const CHARGE_RATE = 1.5;
+const PREDICTION_STEPS = 200;
+const PREDICTION_DT = 0.03;
+const SLOW_MO_FACTOR = 0.25;
+const COMBO_WINDOW = 3.0;
+const PLANET_COLORS = [0x00ffff, 0xff44ff, 0xffaa00, 0x00ff88, 0xff4444, 0x8888ff, 0xffff00, 0x44aaff];
+
+// ---- Types ----
+type GameMode = 'classic' | 'slingshot' | 'time-trial' | 'precision' | 'chaos' | 'zen' | 'survival' | 'daily';
+type GameState = 'menu' | 'playing' | 'paused' | 'level-complete' | 'game-over';
+type ThemeName = 'deep-space' | 'nebula' | 'solar' | 'ice' | 'void';
+interface ThemeColors { bg: number; fog: number; ambient: number; grid: number; }
+const THEMES: Record<ThemeName, ThemeColors> = {
+  'deep-space': { bg: 0x020210, fog: 0x020210, ambient: 0x111133, grid: 0x1a1a4a },
+  'nebula': { bg: 0x0d0020, fog: 0x0d0020, ambient: 0x221133, grid: 0x331155 },
+  'solar': { bg: 0x100800, fog: 0x100800, ambient: 0x332200, grid: 0x443311 },
+  'ice': { bg: 0x001020, fog: 0x001020, ambient: 0x112233, grid: 0x224466 },
+  'void': { bg: 0x000800, fog: 0x000800, ambient: 0x002200, grid: 0x003300 },
+};
+interface GravityWell { group: Group; position: Vector3; mass: number; radius: number; color: number; glowMesh: Mesh; ringMesh: Mesh; fieldLines: Line[]; pulsePhase: number; }
+interface Probe { mesh: Mesh; trailLine: Line; trailPositions: Vector3[]; position: Vector3; velocity: Vector3; alive: boolean; age: number; orbitCount: number; lastWellIdx: number; closestApproach: number; }
+interface Target { group: Group; position: Vector3; collected: boolean; pulsePhase: number; points: number; }
+interface LevelConfig { wells: { x: number; y: number; z: number; mass: number; radius: number; color: number }[]; targets: { x: number; y: number; z: number; points: number }[]; probeLimit: number; timeLimit: number; name: string; }
+interface Achievement { id: string; name: string; desc: string; unlocked: boolean; }
+
+// ---- Keyboard State (browser fallback) ----
+class KeyState {
+  private pressed = new Set<string>();
+  private justDown = new Set<string>();
+  private justUp = new Set<string>();
+  constructor() {
+    document.addEventListener('keydown', (e) => { if (!this.pressed.has(e.code)) this.justDown.add(e.code); this.pressed.add(e.code); });
+    document.addEventListener('keyup', (e) => { this.pressed.delete(e.code); this.justUp.add(e.code); });
+  }
+  isPressed(code: string) { return this.pressed.has(code); }
+  isDown(code: string) { return this.justDown.has(code); }
+  isUp(code: string) { return this.justUp.has(code); }
+  endFrame() { this.justDown.clear(); this.justUp.clear(); }
+}
+
+// ---- Audio Manager ----
+class AudioManager {
+  private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private droneOsc: OscillatorNode | null = null;
+  musicVolume = 0.8;
+  sfxVolume = 1.0;
+
+  private ensureCtx() {
+    if (!this.ctx) {
+      this.ctx = new AudioContext();
+      this.masterGain = this.ctx.createGain(); this.masterGain.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = this.musicVolume * 0.3; this.musicGain.connect(this.masterGain);
+      this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = this.sfxVolume; this.sfxGain.connect(this.masterGain);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+
+  startDrone() {
+    const ctx = this.ensureCtx(); if (this.droneOsc) return;
+    this.droneOsc = ctx.createOscillator(); this.droneOsc.type = 'sine'; this.droneOsc.frequency.value = 55;
+    const g = ctx.createGain(); g.gain.value = 0.08; this.droneOsc.connect(g); g.connect(this.musicGain!); this.droneOsc.start();
+    const h = ctx.createOscillator(); h.type = 'sine'; h.frequency.value = 82.5;
+    const hg = ctx.createGain(); hg.gain.value = 0.04; h.connect(hg); hg.connect(this.musicGain!); h.start();
+  }
+
+  playLaunch(power: number) {
+    const ctx = this.ensureCtx(); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 200 + power * 400;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.15, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.3);
+  }
+
+  playCollect(combo: number) {
+    const ctx = this.ensureCtx(); const base = 440 * Math.pow(2, combo / 12);
+    for (let i = 0; i < 3; i++) {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = base * (1 + i * 0.5);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.05); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.05 + 0.3);
+      o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.05); o.stop(ctx.currentTime + i * 0.05 + 0.3);
+    }
+  }
+
+  playCrash() {
+    const ctx = this.ensureCtx(); const n = ctx.sampleRate * 0.2; const buf = ctx.createBuffer(1, n, ctx.sampleRate); const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = ctx.createBufferSource(); src.buffer = buf; const g = ctx.createGain(); g.gain.setValueAtTime(0.2, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    src.connect(g); g.connect(this.sfxGain!); src.start();
+  }
+
+  playCharge(progress: number) {
+    const ctx = this.ensureCtx(); const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 200 + progress * 600;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.06, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.08);
+  }
+
+  playSuccess() {
+    const ctx = this.ensureCtx();
+    [523, 659, 784, 1047].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.1); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.4); o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.1); o.stop(ctx.currentTime + i * 0.1 + 0.4); });
+  }
+
+  playFail() {
+    const ctx = this.ensureCtx(); const o = ctx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(200, ctx.currentTime); o.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.4);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.1, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4); o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.4);
+  }
+
+  playClick() {
+    const ctx = this.ensureCtx(); const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 800;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.08, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05); o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.05);
+  }
+
+  playAchievement() {
+    const ctx = this.ensureCtx();
+    [659, 784, 880, 1047, 1319].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.08); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.5); o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.08); o.stop(ctx.currentTime + i * 0.08 + 0.5); });
+  }
+
+  setMusicVolume(v: number) { this.musicVolume = v; if (this.musicGain) this.musicGain.gain.value = v * 0.3; }
+  setSfxVolume(v: number) { this.sfxVolume = v; if (this.sfxGain) this.sfxGain.gain.value = v; }
+}
+
+// ---- Particle Pool ----
+class ParticlePool {
+  private geometry: BufferGeometry;
+  private positions: Float32Array;
+  private colors: Float32Array;
+  private velocities: Vector3[] = [];
+  private lifetimes: number[] = [];
+  private maxLifetimes: number[] = [];
+  private activeCount = 0;
+  private maxP: number;
+
+  constructor(scene: Object3D, maxP = 200) {
+    this.maxP = maxP; this.positions = new Float32Array(maxP * 3); this.colors = new Float32Array(maxP * 4);
+    const sizes = new Float32Array(maxP);
+    for (let i = 0; i < maxP; i++) { this.velocities.push(new Vector3()); this.lifetimes.push(0); this.maxLifetimes.push(0); sizes[i] = 0; }
+    this.geometry = new BufferGeometry();
+    this.geometry.setAttribute('position', new Float32BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute('color', new Float32BufferAttribute(this.colors, 4));
+    const mat = new PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+    const pts = new Points(this.geometry, mat); pts.frustumCulled = false; scene.add(pts);
+  }
+
+  emit(pos: Vector3, color: Color, count: number, speed = 2, lifetime = 0.8) {
+    for (let i = 0; i < count; i++) {
+      const idx = this.findFree(); if (idx < 0) break;
+      this.positions[idx * 3] = pos.x; this.positions[idx * 3 + 1] = pos.y; this.positions[idx * 3 + 2] = pos.z;
+      this.velocities[idx].set((Math.random() - 0.5) * speed, (Math.random() - 0.5) * speed, (Math.random() - 0.5) * speed);
+      this.colors[idx * 4] = color.r; this.colors[idx * 4 + 1] = color.g; this.colors[idx * 4 + 2] = color.b; this.colors[idx * 4 + 3] = 1;
+      this.lifetimes[idx] = lifetime; this.maxLifetimes[idx] = lifetime;
+      this.activeCount = Math.max(this.activeCount, idx + 1);
+    }
+  }
+
+  update(delta: number) {
+    let ma = 0;
+    for (let i = 0; i < this.activeCount; i++) {
+      if (this.lifetimes[i] <= 0) continue; this.lifetimes[i] -= delta;
+      if (this.lifetimes[i] <= 0) continue; ma = i + 1;
+      const t = this.lifetimes[i] / this.maxLifetimes[i];
+      this.positions[i * 3] += this.velocities[i].x * delta; this.positions[i * 3 + 1] += this.velocities[i].y * delta; this.positions[i * 3 + 2] += this.velocities[i].z * delta;
+      this.colors[i * 4 + 3] = t; this.velocities[i].multiplyScalar(0.98);
+    }
+    this.activeCount = ma; this.geometry.attributes.position.needsUpdate = true; this.geometry.attributes.color.needsUpdate = true;
+  }
+
+  private findFree(): number { for (let i = 0; i < this.maxP; i++) { if (this.lifetimes[i] <= 0) return i; } return -1; }
+}
+
+// ---- Level Generator ----
+function seededRandom(seed: number): () => number { let s = seed; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
+function dateSeed(): number { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+
+function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
+  const rng = seededRandom(levelNum * 137 + (mode === 'daily' ? dateSeed() : 0));
+  const fieldSize = 6 + Math.min(levelNum * 0.5, 6);
+  let wc: number, tc: number, pl: number, tl: number;
+  switch (mode) {
+    case 'classic': wc = 2 + Math.min(Math.floor(levelNum / 3), 4); tc = 3 + Math.min(levelNum, 7); pl = tc + 3; tl = 0; break;
+    case 'slingshot': wc = 3 + Math.min(Math.floor(levelNum / 2), 5); tc = 2 + Math.min(Math.floor(levelNum / 2), 5); pl = tc; tl = 0; break;
+    case 'time-trial': wc = 2 + Math.min(Math.floor(levelNum / 3), 3); tc = 5 + Math.min(levelNum, 10); pl = 99; tl = 30 + levelNum * 5; break;
+    case 'precision': wc = 1 + Math.min(Math.floor(levelNum / 2), 3); tc = 2 + Math.min(Math.floor(levelNum / 2), 4); pl = tc; tl = 0; break;
+    case 'chaos': wc = 5 + Math.min(levelNum, 8); tc = 4 + Math.min(levelNum, 6); pl = tc + 5; tl = 0; break;
+    case 'zen': wc = 3 + Math.min(Math.floor(levelNum / 2), 5); tc = 0; pl = 99; tl = 0; break;
+    case 'survival': wc = 2 + Math.min(Math.floor(levelNum / 2), 6); tc = 3 + levelNum; pl = Math.max(tc - levelNum, 3); tl = 60; break;
+    case 'daily': wc = 3 + Math.floor(rng() * 4); tc = 5 + Math.floor(rng() * 5); pl = tc + 2; tl = 90; break;
+    default: wc = 3; tc = 5; pl = 8; tl = 0;
+  }
+  const wells: LevelConfig['wells'] = [];
+  for (let i = 0; i < wc; i++) {
+    const angle = (i / wc) * Math.PI * 2 + rng() * 0.5;
+    const dist = 3 + rng() * fieldSize * 0.5;
+    wells.push({ x: Math.cos(angle) * dist, y: (rng() - 0.5) * 3, z: -3 - Math.sin(angle) * dist, mass: 1 + rng() * 3, radius: 0.3 + rng() * 0.5, color: PLANET_COLORS[i % PLANET_COLORS.length] });
+  }
+  const targets: LevelConfig['targets'] = [];
+  for (let i = 0; i < tc; i++) {
+    let x: number, y: number, z: number, at = 0;
+    do { const a = rng() * Math.PI * 2; const d = 2 + rng() * fieldSize; x = Math.cos(a) * d; y = (rng() - 0.5) * 4; z = -3 - Math.sin(a) * d; at++; }
+    while (at < 20 && wells.some(w => Math.sqrt((x - w.x) ** 2 + (y - w.y) ** 2 + (z - w.z) ** 2) < w.radius + 0.5));
+    targets.push({ x, y, z, points: 100 + Math.floor(rng() * 5) * 50 });
+  }
+  const names: Record<GameMode, string> = { classic: 'Classic', slingshot: 'Slingshot', 'time-trial': 'Time Trial', precision: 'Precision', chaos: 'Chaos', zen: 'Zen', survival: 'Survival', daily: 'Daily' };
+  return { wells, targets, probeLimit: pl, timeLimit: tl, name: `${names[mode]} ${mode === 'daily' ? '' : `Level ${levelNum}`}` };
+}
+
+
+// ---- Game Manager ----
+class GameManager {
+  state: GameState = 'menu'; mode: GameMode = 'classic'; level = 1;
+  score = 0; probesUsed = 0; probesRemaining = 10; targetsCollected = 0; targetsTotal = 0;
+  elapsedTime = 0; combo = 0; bestCombo = 0; lastCollectTime = 0;
+  slowMo = false; timeScale = 1; charging = false; chargeAmount = 0;
+  theme: ThemeName = 'deep-space'; showTrajectory = true;
+  trailLen: 'short' | 'medium' | 'long' = 'long';
+  // Persistent stats
+  totalScore = 0; gamesPlayed = 0; totalProbesLaunched = 0; totalTargetsCollected = 0;
+  allTimeBestCombo = 0; planetsCrashedInto = 0; perfectLevels = 0; longestOrbit = 0; totalPlayTime = 0;
+  dailyStreak = 0; xp = 0; playerLevel = 1; xpToNext = 100;
+  // Level data
+  currentLevel: LevelConfig | null = null; wells: GravityWell[] = []; probes: Probe[] = []; targets: Target[] = [];
+  // Achievements
+  achievements: Achievement[] = [
+    { id: 'first-contact', name: 'First Contact', desc: 'Collect your first target', unlocked: false },
+    { id: 'orbital-5', name: 'Orbital Mechanic', desc: 'Complete 5 levels', unlocked: false },
+    { id: 'slingshot-3', name: 'Slingshot Master', desc: '3 gravity assists in one probe', unlocked: false },
+    { id: 'sharp-100', name: 'Sharp Shooter', desc: '100% accuracy on a level', unlocked: false },
+    { id: 'speed-30', name: 'Speed Runner', desc: 'Clear level under 30s', unlocked: false },
+    { id: 'combo-5', name: 'Combo King', desc: 'Reach x5 combo', unlocked: false },
+    { id: 'efficient-3', name: 'Efficient Pilot', desc: 'Hit 3 targets with 1 probe', unlocked: false },
+    { id: 'marathon-30', name: 'Marathon', desc: 'Play for 30 minutes', unlocked: false },
+    { id: 'collect-100', name: 'Collector', desc: 'Gather 100 total targets', unlocked: false },
+    { id: 'orbit-3', name: 'Planet Hugger', desc: 'Orbit a planet 3 times', unlocked: false },
+    { id: 'zen-1', name: 'Zero G', desc: 'Complete a Zen session', unlocked: false },
+    { id: 'daily-7', name: 'Daily Driver', desc: '7 daily challenges', unlocked: false },
+    { id: 'chaos-1', name: 'Chaos Theory', desc: 'Clear a Chaos level', unlocked: false },
+    { id: 'survive-10', name: 'Survivor', desc: 'Reach wave 10 in Survival', unlocked: false },
+    { id: 'slowmo-50', name: 'Time Warp', desc: 'Use slow-mo 50 times', unlocked: false },
+    { id: 'graze-05', name: 'Gravity Surfer', desc: 'Pass within 0.5m of a planet', unlocked: false },
+    { id: 'multi-5', name: 'Multi-orbit', desc: '5 probes alive at once', unlocked: false },
+    { id: 'score-10k', name: 'Score Hunter', desc: 'Reach 10,000 total score', unlocked: false },
+    { id: 'star-10', name: 'Triple Star', desc: '3-star on 10 levels', unlocked: false },
+    { id: 'minimalist', name: 'Minimalist', desc: 'Clear a level with 1 probe', unlocked: false },
+    { id: 'collect-500', name: 'Hoarder', desc: 'Collect 500 total targets', unlocked: false },
+    { id: 'combo-10', name: 'Combo Legend', desc: 'Reach x10 combo', unlocked: false },
+    { id: 'score-50k', name: 'High Scorer', desc: 'Reach 50,000 total score', unlocked: false },
+    { id: 'perfect-5', name: 'Perfectionist', desc: '5 perfect levels', unlocked: false },
+    { id: 'graze-02', name: 'Daredevil', desc: 'Pass within 0.2m of a planet', unlocked: false },
+    { id: 'orbit-10', name: 'Orbital Master', desc: 'One probe orbits 10 times', unlocked: false },
+    { id: 'slingshot-5', name: 'Gravity Wizard', desc: '5 gravity assists one probe', unlocked: false },
+    { id: 'crash-20', name: 'Crash Test', desc: 'Crash into 20 planets total', unlocked: false },
+    { id: 'probes-200', name: 'Probe Master', desc: 'Launch 200 total probes', unlocked: false },
+    { id: 'games-50', name: 'Veteran', desc: 'Play 50 games', unlocked: false },
+    { id: 'speed-15', name: 'Warp Speed', desc: 'Clear level under 15s', unlocked: false },
+    { id: 'precision-1', name: 'Laser Focus', desc: 'Clear a Precision level', unlocked: false },
+    { id: 'all-modes', name: 'Explorer', desc: 'Play every game mode', unlocked: false },
+    { id: 'time-trial-1', name: 'Against the Clock', desc: 'Clear a Time Trial level', unlocked: false },
+    { id: 'lvl-10', name: 'Journeyman', desc: 'Reach level 10', unlocked: false },
+    { id: 'lvl-25', name: 'Expert', desc: 'Reach level 25', unlocked: false },
+    { id: 'slowmo-100', name: 'Time Lord', desc: 'Use slow-mo 100 times', unlocked: false },
+    { id: 'survive-20', name: 'Iron Will', desc: 'Reach wave 20 in Survival', unlocked: false },
+    { id: 'streak-14', name: 'Dedicated', desc: '14-day daily streak', unlocked: false },
+    { id: 'score-100k', name: 'Legend', desc: 'Reach 100,000 total score', unlocked: false },
+  ];
+  modesPlayed = new Set<GameMode>(); slowMoCount = 0; tripleStarCount = 0; levelsCompleted = 0;
+  pendingAchievements: Achievement[] = [];
+
+  getTrailLen(): number { return this.trailLen === 'short' ? 40 : this.trailLen === 'medium' ? 80 : 120; }
+  getPlayerTitle(): string {
+    const t = ['Cadet','Pilot','Navigator','Commander','Captain','Admiral','Voyager','Explorer','Astronaut','Cosmonaut','Star Pilot','Orbital Engineer','Gravity Master','Void Walker','Space Legend','Cosmic Sage','Nebula Lord','Galaxy Commander','Universe Traveler','Ascended'];
+    return t[Math.min(this.playerLevel - 1, t.length - 1)];
+  }
+  addXP(amount: number) { this.xp += amount; while (this.xp >= this.xpToNext) { this.xp -= this.xpToNext; this.playerLevel++; this.xpToNext = 100 + (this.playerLevel - 1) * 50; } }
+  getStars(): number {
+    if (!this.currentLevel || this.currentLevel.targets.length === 0) return 0;
+    const acc = this.probesUsed > 0 ? this.targetsCollected / this.probesUsed : 0;
+    const comp = this.targetsCollected / this.targetsTotal;
+    if (comp >= 1 && acc >= 0.8) return 3; if (comp >= 0.8) return 2; if (comp >= 0.5) return 1; return 0;
+  }
+  getRating(): string { const s = this.getStars(); return s === 3 ? '***' : s === 2 ? '**' : s === 1 ? '*' : '--'; }
+
+  checkAchievements() {
+    const ck = (id: string, cond: boolean) => {
+      const a = this.achievements.find(a => a.id === id);
+      if (a && !a.unlocked && cond) { a.unlocked = true; this.pendingAchievements.push(a); }
+    };
+    ck('first-contact', this.totalTargetsCollected >= 1); ck('orbital-5', this.levelsCompleted >= 5);
+    ck('sharp-100', this.probesUsed > 0 && this.targetsCollected === this.targetsTotal && this.targetsCollected === this.probesUsed);
+    ck('speed-30', this.elapsedTime < 30 && this.targetsCollected === this.targetsTotal && this.targetsTotal > 0);
+    ck('combo-5', this.bestCombo >= 5); ck('marathon-30', this.totalPlayTime >= 1800);
+    ck('collect-100', this.totalTargetsCollected >= 100); ck('zen-1', this.mode === 'zen');
+    ck('chaos-1', this.mode === 'chaos' && this.targetsCollected === this.targetsTotal);
+    ck('survive-10', this.mode === 'survival' && this.level >= 10);
+    ck('slowmo-50', this.slowMoCount >= 50); ck('multi-5', this.probes.filter(p => p.alive).length >= 5);
+    ck('score-10k', this.totalScore >= 10000); ck('star-10', this.tripleStarCount >= 10);
+    ck('minimalist', this.probesUsed === 1 && this.targetsCollected === this.targetsTotal && this.targetsTotal > 0);
+    ck('collect-500', this.totalTargetsCollected >= 500); ck('combo-10', this.bestCombo >= 10);
+    ck('score-50k', this.totalScore >= 50000); ck('perfect-5', this.perfectLevels >= 5);
+    ck('crash-20', this.planetsCrashedInto >= 20); ck('probes-200', this.totalProbesLaunched >= 200);
+    ck('games-50', this.gamesPlayed >= 50); ck('speed-15', this.elapsedTime < 15 && this.targetsCollected === this.targetsTotal && this.targetsTotal > 0);
+    ck('precision-1', this.mode === 'precision' && this.targetsCollected === this.targetsTotal);
+    ck('all-modes', this.modesPlayed.size >= 8); ck('time-trial-1', this.mode === 'time-trial' && this.targetsCollected === this.targetsTotal);
+    ck('lvl-10', this.level >= 10); ck('lvl-25', this.level >= 25);
+    ck('slowmo-100', this.slowMoCount >= 100); ck('survive-20', this.mode === 'survival' && this.level >= 20);
+    ck('streak-14', this.dailyStreak >= 14); ck('score-100k', this.totalScore >= 100000);
+  }
+}
+
+
+// ---- Scene Builders ----
+function createStarField(scene: Object3D, count = 800): Points {
+  const pos = new Float32Array(count * 3); const col = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1); const r = 40 + Math.random() * 60;
+    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta); pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta); pos[i * 3 + 2] = r * Math.cos(phi);
+    const b = 0.3 + Math.random() * 0.7; col[i * 3] = b; col[i * 3 + 1] = b; col[i * 3 + 2] = b * (0.8 + Math.random() * 0.4);
+  }
+  const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new Float32BufferAttribute(col, 3));
+  const mat = new PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, sizeAttenuation: true });
+  const stars = new Points(geo, mat); scene.add(stars); return stars;
+}
+
+function createGridFloor(scene: Object3D, color: number): Group {
+  const g = new Group(); const sz = 40; const step = 2;
+  const mat = new LineBasicMaterial({ color, transparent: true, opacity: 0.15 });
+  for (let i = -sz; i <= sz; i += step) {
+    const gx = new BufferGeometry(); gx.setAttribute('position', new Float32BufferAttribute([i, -2, -sz, i, -2, sz], 3)); g.add(new LineSegments(gx, mat));
+    const gz = new BufferGeometry(); gz.setAttribute('position', new Float32BufferAttribute([-sz, -2, i, sz, -2, i], 3)); g.add(new LineSegments(gz, mat));
+  }
+  scene.add(g); return g;
+}
+
+function createGravityWell(scene: Object3D, cfg: LevelConfig['wells'][0]): GravityWell {
+  const group = new Group(); group.position.set(cfg.x, cfg.y, cfg.z);
+  const core = new Mesh(new SphereGeometry(cfg.radius, 32, 32), new MeshStandardMaterial({ color: cfg.color, emissive: cfg.color, emissiveIntensity: 0.5, roughness: 0.3, metalness: 0.7 }));
+  group.add(core);
+  const glowMesh = new Mesh(new SphereGeometry(cfg.radius * 1.3, 24, 24), new MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.15, blending: AdditiveBlending, depthWrite: false }));
+  group.add(glowMesh);
+  const ringMesh = new Mesh(new TorusGeometry(cfg.radius * 2, 0.02, 8, 64), new MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.3 }));
+  ringMesh.rotation.x = Math.PI * 0.5; group.add(ringMesh);
+  const fieldLines: Line[] = [];
+  for (let i = 0; i < 3; i++) {
+    const r = cfg.radius * (2.5 + i * 1.5); const pts: number[] = []; const segs = 48;
+    for (let j = 0; j <= segs; j++) { const a = (j / segs) * Math.PI * 2; pts.push(Math.cos(a) * r, 0, Math.sin(a) * r); }
+    const lg = new BufferGeometry(); lg.setAttribute('position', new Float32BufferAttribute(pts, 3));
+    const line = new Line(lg, new LineBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.08 - i * 0.02 }));
+    group.add(line); fieldLines.push(line);
+  }
+  group.add(new PointLight(cfg.color, 0.5, cfg.radius * 8));
+  scene.add(group);
+  return { group, position: new Vector3(cfg.x, cfg.y, cfg.z), mass: cfg.mass, radius: cfg.radius, color: cfg.color, glowMesh, ringMesh, fieldLines, pulsePhase: Math.random() * Math.PI * 2 };
+}
+
+function createTarget(scene: Object3D, cfg: LevelConfig['targets'][0]): Target {
+  const group = new Group(); group.position.set(cfg.x, cfg.y, cfg.z);
+  group.add(new Mesh(new OctahedronGeometry(TARGET_RADIUS, 0), new MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.8 })));
+  group.add(new Mesh(new OctahedronGeometry(TARGET_RADIUS * 1.2, 0), new MeshBasicMaterial({ color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.4 })));
+  group.add(new Mesh(new SphereGeometry(TARGET_RADIUS * 2, 12, 12), new MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: AdditiveBlending, depthWrite: false })));
+  scene.add(group);
+  return { group, position: new Vector3(cfg.x, cfg.y, cfg.z), collected: false, pulsePhase: Math.random() * Math.PI * 2, points: cfg.points };
+}
+
+function createProbe(scene: Object3D): Probe {
+  const mesh = new Mesh(new SphereGeometry(PROBE_RADIUS, 16, 16), new MeshStandardMaterial({ color: 0xff8844, emissive: 0xff8844, emissiveIntensity: 0.8, roughness: 0.1, metalness: 0.9 }));
+  mesh.visible = false; scene.add(mesh);
+  const trailPositions: Vector3[] = []; for (let i = 0; i < TRAIL_LENGTH; i++) trailPositions.push(new Vector3());
+  const tg = new BufferGeometry(); tg.setAttribute('position', new Float32BufferAttribute(new Float32Array(TRAIL_LENGTH * 3), 3));
+  const trailLine = new Line(tg, new LineBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 }));
+  trailLine.visible = false; trailLine.frustumCulled = false; scene.add(trailLine);
+  return { mesh, trailLine, trailPositions, position: new Vector3(), velocity: new Vector3(), alive: false, age: 0, orbitCount: 0, lastWellIdx: -1, closestApproach: Infinity };
+}
+
+function createPredictionLine(scene: Object3D): Line {
+  const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(PREDICTION_STEPS * 3), 3));
+  const line = new Line(geo, new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
+  line.visible = false; line.frustumCulled = false; scene.add(line); return line;
+}
+
+function createLaunchIndicator(scene: Object3D): Group {
+  const g = new Group();
+  const arrow = new Mesh(new CylinderGeometry(0.01, 0.01, 0.5, 8), new MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 }));
+  arrow.rotation.x = Math.PI / 2; arrow.position.z = -0.3; g.add(arrow);
+  const tip = new Mesh(new CylinderGeometry(0, 0.03, 0.08, 8), new MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.8 }));
+  tip.rotation.x = Math.PI / 2; tip.position.z = -0.55; g.add(tip);
+  g.visible = false; scene.add(g); return g;
+}
+
+// ---- Gravity ----
+const _tv = new Vector3();
+function computeGravity(pos: Vector3, wells: GravityWell[], out: Vector3): void {
+  out.set(0, 0, 0);
+  for (const w of wells) {
+    _tv.subVectors(w.position, pos); const dSq = _tv.lengthSq(); const d = Math.sqrt(dSq);
+    if (d < w.radius * 0.5) continue;
+    _tv.normalize().multiplyScalar(G_CONSTANT * w.mass / Math.max(dSq, 0.1));
+    out.add(_tv);
+  }
+}
+
+function simulateTrajectory(startPos: Vector3, startVel: Vector3, wells: GravityWell[], steps: number, dt: number, outPos: Float32Array): number {
+  const p = startPos.clone(); const v = startVel.clone(); const a = new Vector3();
+  let valid = 0;
+  for (let i = 0; i < steps; i++) {
+    computeGravity(p, wells, a); v.addScaledVector(a, dt); p.addScaledVector(v, dt);
+    outPos[i * 3] = p.x; outPos[i * 3 + 1] = p.y; outPos[i * 3 + 2] = p.z; valid++;
+    for (const w of wells) { if (p.distanceTo(w.position) < w.radius) return valid; }
+    if (p.length() > MAX_DISTANCE * 1.5) return valid;
+  }
+  return valid;
+}
+
+
+// ---- Orbit Physics System ----
+class OrbitPhysicsSystem extends createSystem({}) {
+  private game!: GameManager; private audio!: AudioManager; private particles!: ParticlePool;
+  private probes: Probe[] = []; private wells: GravityWell[] = []; private targets: Target[] = [];
+  private accel = new Vector3();
+
+  setRefs(refs: { game: GameManager; audio: AudioManager; particles: ParticlePool; probes: Probe[]; wells: GravityWell[]; targets: Target[] }) {
+    this.game = refs.game; this.audio = refs.audio; this.particles = refs.particles;
+    this.probes = refs.probes; this.wells = refs.wells; this.targets = refs.targets;
+  }
+
+  update(delta: number, _time: number) {
+    if (this.game.state !== 'playing') return;
+    const dt = delta * this.game.timeScale;
+    this.game.elapsedTime += dt; this.game.totalPlayTime += delta;
+    if (this.game.currentLevel && this.game.currentLevel.timeLimit > 0 && this.game.elapsedTime >= this.game.currentLevel.timeLimit) { this.endLevel(); return; }
+
+    for (const pr of this.probes) {
+      if (!pr.alive) continue;
+      pr.age += dt;
+      computeGravity(pr.position, this.wells, this.accel);
+      pr.velocity.addScaledVector(this.accel, dt);
+      pr.position.addScaledVector(pr.velocity, dt);
+      pr.mesh.position.copy(pr.position);
+      // Trail
+      pr.trailPositions.pop(); pr.trailPositions.unshift(pr.position.clone());
+      const tl = this.game.getTrailLen();
+      const pa = pr.trailLine.geometry.attributes.position.array as Float32Array;
+      for (let i = 0; i < TRAIL_LENGTH; i++) {
+        const tp = i < tl ? pr.trailPositions[i] : pr.trailPositions[Math.min(i, tl - 1)];
+        pa[i * 3] = tp.x; pa[i * 3 + 1] = tp.y; pa[i * 3 + 2] = tp.z;
+      }
+      pr.trailLine.geometry.attributes.position.needsUpdate = true;
+      // Orbit tracking
+      for (let wi = 0; wi < this.wells.length; wi++) {
+        const dist = pr.position.distanceTo(this.wells[wi].position);
+        if (dist < pr.closestApproach) pr.closestApproach = dist;
+        if (dist < this.wells[wi].radius * 4 && wi !== pr.lastWellIdx) { if (pr.lastWellIdx >= 0) pr.orbitCount++; pr.lastWellIdx = wi; }
+      }
+      // Collision with wells
+      let crashed = false;
+      for (const w of this.wells) {
+        if (pr.position.distanceTo(w.position) < w.radius) {
+          crashed = true; this.audio.playCrash(); this.particles.emit(pr.position, new Color(w.color), 30, 3, 0.6); this.game.planetsCrashedInto++; break;
+        }
+      }
+      if (pr.position.length() > MAX_DISTANCE) crashed = true;
+      if (crashed) { this.killProbe(pr); continue; }
+      // Target collection
+      for (const tgt of this.targets) {
+        if (tgt.collected) continue;
+        if (pr.position.distanceTo(tgt.position) < TARGET_RADIUS + PROBE_RADIUS + 0.15) this.collectTarget(tgt, pr);
+      }
+      // Per-probe achievements
+      if (pr.orbitCount >= 3) { const a = this.game.achievements.find(a => a.id === 'orbit-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+      if (pr.closestApproach < 0.5) { const a = this.game.achievements.find(a => a.id === 'graze-05'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+      if (pr.closestApproach < 0.2) { const a = this.game.achievements.find(a => a.id === 'graze-02'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+      if (pr.orbitCount >= 10) { const a = this.game.achievements.find(a => a.id === 'orbit-10'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+    }
+    this.game.checkAchievements();
+    this.particles.update(dt);
+    // Animate wells
+    for (const w of this.wells) {
+      w.pulsePhase += dt * 2; (w.glowMesh.material as MeshBasicMaterial).opacity = 0.15 + Math.sin(w.pulsePhase) * 0.05;
+      w.ringMesh.rotation.z += dt * 0.3; w.fieldLines.forEach((l, i) => { l.rotation.y += dt * (0.1 + i * 0.05); });
+    }
+    // Animate targets
+    for (const t of this.targets) { if (t.collected) continue; t.pulsePhase += dt * 3; t.group.rotation.y += dt; t.group.rotation.x += dt * 0.5; t.group.scale.setScalar(1 + Math.sin(t.pulsePhase) * 0.15); }
+    // Check level end
+    if (this.game.mode !== 'zen') {
+      const allDone = this.targets.length > 0 && this.targets.every(t => t.collected);
+      const noProbes = this.game.probesRemaining <= 0 && !this.probes.some(p => p.alive);
+      if (allDone || noProbes) this.endLevel();
+    }
+  }
+
+  private collectTarget(tgt: Target, pr: Probe) {
+    tgt.collected = true; tgt.group.visible = false; this.game.targetsCollected++; this.game.totalTargetsCollected++;
+    const now = this.game.elapsedTime;
+    if (now - this.game.lastCollectTime < COMBO_WINDOW) this.game.combo++; else this.game.combo = 1;
+    this.game.lastCollectTime = now;
+    if (this.game.combo > this.game.bestCombo) this.game.bestCombo = this.game.combo;
+    if (this.game.combo > this.game.allTimeBestCombo) this.game.allTimeBestCombo = this.game.combo;
+    this.game.score += tgt.points * this.game.combo; this.game.totalScore += tgt.points * this.game.combo;
+    this.audio.playCollect(this.game.combo); this.particles.emit(tgt.position, new Color(0x00ff88), 25, 4, 1.0);
+    if (pr.orbitCount >= 3) { const a = this.game.achievements.find(a => a.id === 'slingshot-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+    if (pr.orbitCount >= 5) { const a = this.game.achievements.find(a => a.id === 'slingshot-5'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+    this.game.checkAchievements();
+  }
+
+  private killProbe(pr: Probe) { pr.alive = false; pr.mesh.visible = false; pr.trailLine.visible = false; }
+
+  private endLevel() {
+    if (this.game.state !== 'playing') return;
+    const allDone = this.targets.every(t => t.collected);
+    if (allDone && this.game.targetsTotal > 0) {
+      this.game.levelsCompleted++; const stars = this.game.getStars();
+      if (stars === 3) this.game.tripleStarCount++;
+      if (this.game.probesUsed > 0 && this.game.targetsCollected === this.game.probesUsed) this.game.perfectLevels++;
+      this.game.addXP(50 + stars * 25 + Math.floor(this.game.score / 10)); this.audio.playSuccess(); this.game.state = 'level-complete';
+    } else { this.audio.playFail(); this.game.state = 'game-over'; }
+    this.game.gamesPlayed++; this.game.modesPlayed.add(this.game.mode); this.game.checkAchievements();
+  }
+}
+
+// ---- Input System ----
+class InputControlSystem extends createSystem({}) {
+  private game!: GameManager; private audio!: AudioManager; private keys!: KeyState;
+  private probes: Probe[] = []; private wells: GravityWell[] = [];
+  private predLine!: Line; private launchInd!: Group;
+  private launchDir = new Vector3(0, 0, -1); private aimOrigin = new Vector3(0, 1.5, 0);
+  private chargeTick = 0;
+
+  setRefs(refs: { game: GameManager; audio: AudioManager; keys: KeyState; probes: Probe[]; wells: GravityWell[]; predLine: Line; launchInd: Group }) {
+    this.game = refs.game; this.audio = refs.audio; this.keys = refs.keys;
+    this.probes = refs.probes; this.wells = refs.wells; this.predLine = refs.predLine; this.launchInd = refs.launchInd;
+  }
+
+  update(delta: number, _time: number) {
+    if (this.game.state !== 'playing') { this.predLine.visible = false; this.launchInd.visible = false; this.keys.endFrame(); return; }
+    const right = this.input.gamepads.right;
+    let tDown = false, tUp = false, tHeld = false, slowToggle = false, pauseP = false;
+    if (right) {
+      const ray = this.player.raySpaces.right;
+      const fwd = new Vector3(0, 0, -1).applyQuaternion(ray.quaternion);
+      ray.getWorldPosition(this.aimOrigin); this.launchDir.copy(fwd).normalize();
+      tDown = !!right.getButtonDown(InputComponent.Trigger); tUp = !!right.getButtonUp(InputComponent.Trigger);
+      tHeld = !!right.getButtonPressed(InputComponent.Trigger); slowToggle = !!right.getButtonDown(InputComponent.Squeeze);
+      pauseP = !!right.getButtonDown(InputComponent.B_Button);
+    }
+    const left = this.input.gamepads.left;
+    if (left) { if (left.getButtonDown(InputComponent.Squeeze)) slowToggle = true; if (left.getButtonDown(InputComponent.Y_Button)) pauseP = true; }
+    // Keyboard
+    if (!right) {
+      const camFwd = new Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      this.launchDir.copy(camFwd).normalize(); this.camera.getWorldPosition(this.aimOrigin);
+    }
+    if (this.keys.isDown('Space')) tDown = true; if (this.keys.isUp('Space')) tUp = true; if (this.keys.isPressed('Space')) tHeld = true;
+    if (this.keys.isDown('ShiftLeft') || this.keys.isDown('ShiftRight')) slowToggle = true;
+    if (this.keys.isDown('Escape') || this.keys.isDown('KeyP')) pauseP = true;
+    this.keys.endFrame();
+    if (pauseP) { this.game.state = 'paused'; return; }
+    if (slowToggle) { this.game.slowMo = !this.game.slowMo; this.game.timeScale = this.game.slowMo ? SLOW_MO_FACTOR : 1; if (this.game.slowMo) this.game.slowMoCount++; }
+    if (tDown && !this.game.charging && this.game.probesRemaining > 0) { this.game.charging = true; this.game.chargeAmount = 0; }
+    if (this.game.charging && tHeld) {
+      this.game.chargeAmount = Math.min(this.game.chargeAmount + delta * CHARGE_RATE, 1);
+      this.chargeTick += delta; if (this.chargeTick > 0.12) { this.chargeTick = 0; this.audio.playCharge(this.game.chargeAmount); }
+    }
+    if (this.game.charging && tUp) { this.game.charging = false; this.launchProbe(); }
+    // Prediction
+    if (this.game.charging && this.game.showTrajectory) {
+      const speed = LAUNCH_MIN_SPEED + this.game.chargeAmount * (LAUNCH_MAX_SPEED - LAUNCH_MIN_SPEED);
+      const vel = this.launchDir.clone().multiplyScalar(speed);
+      const pa = this.predLine.geometry.attributes.position.array as Float32Array;
+      const steps = simulateTrajectory(this.aimOrigin, vel, this.wells, PREDICTION_STEPS, PREDICTION_DT, pa);
+      this.predLine.geometry.setDrawRange(0, steps); this.predLine.geometry.attributes.position.needsUpdate = true; this.predLine.visible = true;
+    } else { this.predLine.visible = false; }
+    // Launch indicator
+    if (this.game.charging || this.game.probesRemaining > 0) {
+      this.launchInd.position.copy(this.aimOrigin);
+      this.launchInd.lookAt(this.aimOrigin.x + this.launchDir.x, this.aimOrigin.y + this.launchDir.y, this.aimOrigin.z + this.launchDir.z);
+      this.launchInd.visible = true;
+    } else { this.launchInd.visible = false; }
+    // Haptics
+    if (this.game.charging && right) {
+      const gp = right.gamepad; const act = gp?.hapticActuators?.[0] as { pulse?: (i: number, ms: number) => void } | undefined;
+      act?.pulse?.(this.game.chargeAmount * 0.3, 16);
+    }
+  }
+
+  private launchProbe() {
+    const speed = LAUNCH_MIN_SPEED + this.game.chargeAmount * (LAUNCH_MAX_SPEED - LAUNCH_MIN_SPEED);
+    const vel = this.launchDir.clone().multiplyScalar(speed);
+    let pr = this.probes.find(p => !p.alive);
+    if (!pr) { let oldest = this.probes[0]; for (const p of this.probes) { if (p.age > oldest.age) oldest = p; } pr = oldest; }
+    pr.position.copy(this.aimOrigin); pr.velocity.copy(vel); pr.alive = true; pr.age = 0;
+    pr.mesh.visible = true; pr.trailLine.visible = true; pr.mesh.position.copy(this.aimOrigin);
+    pr.orbitCount = 0; pr.lastWellIdx = -1; pr.closestApproach = Infinity;
+    for (const tp of pr.trailPositions) tp.copy(this.aimOrigin);
+    this.game.probesUsed++; this.game.probesRemaining--; this.game.totalProbesLaunched++; this.game.chargeAmount = 0;
+    this.audio.playLaunch(speed / LAUNCH_MAX_SPEED);
+    const right = this.input.gamepads.right;
+    if (right) { const gp = right.gamepad; const act = gp?.hapticActuators?.[0] as { pulse?: (i: number, ms: number) => void } | undefined; act?.pulse?.(0.8, 80); }
+  }
+}
+
+
+// ---- UI System ----
+class GameUISystem extends createSystem({
+  mainMenu: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/main-menu.json')] },
+  hud: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/hud.json')] },
+  gameOver: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/game-over.json')] },
+  modeSelect: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/mode-select.json')] },
+  howToPlay: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/how-to-play.json')] },
+  settings: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/settings.json')] },
+  stats: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/stats.json')] },
+  achievements: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/achievements.json')] },
+  pause: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/pause.json')] },
+  themeSelect: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/theme-select.json')] },
+  notification: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/notification.json')] },
+  powerGauge: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/power-gauge.json')] },
+  levelComplete: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/level-complete.json')] },
+  dailyChallenge: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/daily-challenge.json')] },
+}) {
+  private game!: GameManager; private audio!: AudioManager;
+  private onStart!: (m: GameMode, l: number) => void;
+  private onTheme!: (t: ThemeName) => void;
+  private pe: Record<string, Entity> = {};
+  private hudTimer = 0; private notifTimer = 0; private notifActive = false;
+
+  setRefs(refs: { game: GameManager; audio: AudioManager; onStart: (m: GameMode, l: number) => void; onTheme: (t: ThemeName) => void }) {
+    this.game = refs.game; this.audio = refs.audio; this.onStart = refs.onStart; this.onTheme = refs.onTheme;
+  }
+
+  private doc(e: Entity) { return e.getValue(PanelDocument, 'document') as UIKitDocument | undefined; }
+  private st(e: Entity, id: string, text: string) { (this.doc(e)?.getElementById(id) as UIKit.Text | undefined)?.setProperties({ text }); }
+  private btn(e: Entity, id: string, fn: () => void) { (this.doc(e)?.getElementById(id) as UIKit.Text | undefined)?.addEventListener('click', () => { this.audio.playClick(); fn(); }); }
+
+  init() {
+    this.queries.mainMenu.subscribe('qualify', (e) => { this.pe['mainMenu'] = e; this.btn(e, 'btn-play', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-modes', () => this.showP('modeSelect')); this.btn(e, 'btn-achievements', () => this.showP('achievements')); this.btn(e, 'btn-stats', () => this.showP('stats')); this.btn(e, 'btn-settings', () => this.showP('settings')); this.btn(e, 'btn-how', () => this.showP('howToPlay')); });
+    this.queries.modeSelect.subscribe('qualify', (e) => {
+      this.pe['modeSelect'] = e;
+      const modes: [string, GameMode][] = [['btn-classic','classic'],['btn-slingshot','slingshot'],['btn-time-trial','time-trial'],['btn-precision','precision'],['btn-chaos','chaos'],['btn-zen','zen'],['btn-survival','survival'],['btn-daily','daily']];
+      for (const [b, m] of modes) this.btn(e, b, () => { if (m === 'daily') { this.showP('dailyChallenge'); } else { this.game.mode = m; this.game.level = 1; this.onStart(m, 1); } });
+      this.btn(e, 'btn-back', () => this.showP('mainMenu'));
+    });
+    this.queries.howToPlay.subscribe('qualify', (e) => { this.pe['howToPlay'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
+    this.queries.settings.subscribe('qualify', (e) => {
+      this.pe['settings'] = e;
+      this.btn(e, 'music-vol', () => { const v = [0,0.2,0.4,0.6,0.8,1.0]; const i = v.indexOf(this.audio.musicVolume); this.audio.setMusicVolume(v[(i+1)%v.length]); this.st(e, 'music-vol', `${Math.round(this.audio.musicVolume*100)}%`); });
+      this.btn(e, 'sfx-vol', () => { const v = [0,0.2,0.4,0.6,0.8,1.0]; const i = v.indexOf(this.audio.sfxVolume); this.audio.setSfxVolume(v[(i+1)%v.length]); this.st(e, 'sfx-vol', `${Math.round(this.audio.sfxVolume*100)}%`); });
+      this.btn(e, 'preview-toggle', () => { this.game.showTrajectory = !this.game.showTrajectory; this.st(e, 'preview-toggle', this.game.showTrajectory ? 'ON' : 'OFF'); });
+      this.btn(e, 'trail-len', () => { const o: Array<'short'|'medium'|'long'> = ['short','medium','long']; const i = o.indexOf(this.game.trailLen); this.game.trailLen = o[(i+1)%o.length]; this.st(e, 'trail-len', this.game.trailLen.charAt(0).toUpperCase() + this.game.trailLen.slice(1)); });
+      this.btn(e, 'theme-name', () => this.showP('themeSelect'));
+      this.btn(e, 'btn-back', () => this.showP('mainMenu'));
+    });
+    this.queries.stats.subscribe('qualify', (e) => { this.pe['stats'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
+    this.queries.achievements.subscribe('qualify', (e) => { this.pe['achievements'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
+    this.queries.pause.subscribe('qualify', (e) => { this.pe['pause'] = e; this.btn(e, 'btn-resume', () => { this.game.state = 'playing'; }); this.btn(e, 'btn-restart', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-quit', () => { this.game.state = 'menu'; }); });
+    this.queries.gameOver.subscribe('qualify', (e) => { this.pe['gameOver'] = e; this.btn(e, 'btn-retry', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-next', () => { this.game.level++; this.onStart(this.game.mode, this.game.level); }); this.btn(e, 'btn-menu', () => { this.game.state = 'menu'; }); });
+    this.queries.themeSelect.subscribe('qualify', (e) => {
+      this.pe['themeSelect'] = e;
+      const ts: [string, ThemeName][] = [['btn-deep-space','deep-space'],['btn-nebula','nebula'],['btn-solar','solar'],['btn-ice','ice'],['btn-void','void']];
+      for (const [b, t] of ts) this.btn(e, b, () => { this.game.theme = t; this.onTheme(t); this.showP('settings'); });
+      this.btn(e, 'btn-back', () => this.showP('settings'));
+    });
+    this.queries.notification.subscribe('qualify', (e) => { this.pe['notification'] = e; });
+    this.queries.powerGauge.subscribe('qualify', (e) => { this.pe['powerGauge'] = e; });
+    this.queries.hud.subscribe('qualify', (e) => { this.pe['hud'] = e; });
+    this.queries.levelComplete.subscribe('qualify', (e) => { this.pe['levelComplete'] = e; this.btn(e, 'btn-next-lvl', () => { this.game.level++; this.onStart(this.game.mode, this.game.level); }); this.btn(e, 'btn-replay', () => this.onStart(this.game.mode, this.game.level)); });
+    this.queries.dailyChallenge.subscribe('qualify', (e) => { this.pe['dailyChallenge'] = e; this.btn(e, 'btn-start-daily', () => { this.game.mode = 'daily'; this.game.level = 1; this.onStart('daily', 1); }); this.btn(e, 'btn-back', () => this.showP('modeSelect')); });
+  }
+
+  private showP(name: string) {
+    const menus = ['mainMenu','modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'];
+    for (const n of menus) { const p = this.pe[n]; if (p?.object3D) p.object3D.visible = (n === name); }
+    if (name === 'stats') this.refreshStats(); if (name === 'achievements') this.refreshAch();
+  }
+
+  update(delta: number, _time: number) {
+    const sv = (n: string, v: boolean) => { const p = this.pe[n]; if (p?.object3D) p.object3D.visible = v; };
+    const isM = this.game.state === 'menu', isP = this.game.state === 'playing', isPa = this.game.state === 'paused';
+    const isGO = this.game.state === 'game-over', isLC = this.game.state === 'level-complete';
+    if (isM) {
+      const subs = ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'];
+      if (!subs.some(n => this.pe[n]?.object3D?.visible)) sv('mainMenu', true);
+    } else {
+      sv('mainMenu', false);
+      ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'].forEach(n => sv(n, false));
+    }
+    sv('hud', isP || isPa); sv('pause', isPa); sv('gameOver', isGO); sv('levelComplete', isLC);
+    sv('powerGauge', isP && this.game.charging);
+    // HUD updates
+    if (isP || isPa) {
+      this.hudTimer += delta;
+      if (this.hudTimer > 0.1) {
+        this.hudTimer = 0; const h = this.pe['hud'];
+        if (h) {
+          this.st(h, 'score', String(this.game.score)); this.st(h, 'probes', String(this.game.probesRemaining));
+          this.st(h, 'targets', `${this.game.targetsCollected}/${this.game.targetsTotal}`);
+          const m = Math.floor(this.game.elapsedTime / 60); const s = Math.floor(this.game.elapsedTime % 60);
+          this.st(h, 'time', `${m}:${s.toString().padStart(2, '0')}`); this.st(h, 'level', `Level ${this.game.level}`);
+          const mn: Record<GameMode, string> = { classic:'Classic',slingshot:'Slingshot','time-trial':'Time Trial',precision:'Precision',chaos:'Chaos',zen:'Zen',survival:'Survival',daily:'Daily' };
+          this.st(h, 'mode', mn[this.game.mode]);
+          if (this.game.combo > 1) { this.st(h, 'combo', `x${this.game.combo} COMBO`); (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 1 }); }
+          else { (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 0 }); }
+        }
+      }
+    }
+    // Power gauge
+    if (this.game.charging) { const pg = this.pe['powerGauge']; if (pg) { this.st(pg, 'power-pct', `${Math.round(this.game.chargeAmount * 100)}%`); } }
+    // Game over / level complete
+    if (isGO) {
+      const e = this.pe['gameOver']; if (e) {
+        this.st(e, 'final-score', String(this.game.score)); this.st(e, 'final-targets', `${this.game.targetsCollected}/${this.game.targetsTotal}`);
+        this.st(e, 'final-probes', String(this.game.probesUsed));
+        this.st(e, 'final-accuracy', `${this.game.probesUsed > 0 ? Math.round(this.game.targetsCollected / this.game.probesUsed * 100) : 0}%`);
+        const m = Math.floor(this.game.elapsedTime / 60); const s = Math.floor(this.game.elapsedTime % 60);
+        this.st(e, 'final-time', `${m}:${s.toString().padStart(2, '0')}`); this.st(e, 'final-combo', `x${this.game.bestCombo}`);
+        this.st(e, 'rating', this.game.getRating()); this.st(e, 'xp-gained', `+${Math.round(50 + this.game.getStars() * 25 + this.game.score / 10)} XP`);
+      }
+    }
+    if (isLC) {
+      const e = this.pe['levelComplete']; if (e) {
+        const stars = this.game.getStars();
+        for (let i = 1; i <= 3; i++) { this.st(e, `star-${i}`, stars >= i ? '*' : '-'); (this.doc(e)?.getElementById(`star-${i}`) as UIKit.Text | undefined)?.setProperties({ color: stars >= i ? '#ffaa00' : '#444466' }); }
+        this.st(e, 'score-text', `Score: ${this.game.score}`);
+      }
+    }
+    // Achievement notifications
+    if (this.game.pendingAchievements.length > 0 && !this.notifActive) {
+      const a = this.game.pendingAchievements.shift()!; const ne = this.pe['notification'];
+      if (ne) { this.st(ne, 'notif-text', 'Achievement Unlocked!'); this.st(ne, 'notif-detail', a.name); sv('notification', true); this.notifActive = true; this.notifTimer = 3; this.audio.playAchievement(); }
+    }
+    if (this.notifActive) { this.notifTimer -= delta; if (this.notifTimer <= 0) { this.notifActive = false; sv('notification', false); } }
+  }
+
+  private refreshStats() {
+    const e = this.pe['stats']; if (!e) return;
+    this.st(e, 'total-score', String(this.game.totalScore)); this.st(e, 'games-played', String(this.game.gamesPlayed));
+    this.st(e, 'probes-launched', String(this.game.totalProbesLaunched)); this.st(e, 'targets-collected', String(this.game.totalTargetsCollected));
+    this.st(e, 'accuracy', `${this.game.totalProbesLaunched > 0 ? Math.round(this.game.totalTargetsCollected / this.game.totalProbesLaunched * 100) : 0}%`);
+    this.st(e, 'best-combo', `x${this.game.allTimeBestCombo}`); this.st(e, 'crashes', String(this.game.planetsCrashedInto));
+    this.st(e, 'perfect-levels', String(this.game.perfectLevels)); this.st(e, 'longest-orbit', `${this.game.longestOrbit}s`);
+    this.st(e, 'play-time', `${Math.round(this.game.totalPlayTime / 60)}m`);
+    this.st(e, 'player-level', `Lv. ${this.game.playerLevel}`); this.st(e, 'player-title', this.game.getPlayerTitle());
+    this.st(e, 'xp-text', `${this.game.xp} / ${this.game.xpToNext} XP`);
+  }
+
+  private refreshAch() {
+    const e = this.pe['achievements']; if (!e) return;
+    this.st(e, 'progress', `${this.game.achievements.filter(a => a.unlocked).length} / ${this.game.achievements.length} Unlocked`);
+    for (let i = 0; i < 20 && i < this.game.achievements.length; i++) {
+      const a = this.game.achievements[i]; const pre = a.unlocked ? '[*]' : '[?]';
+      (this.doc(e)?.getElementById(`ach-${i}`) as UIKit.Text | undefined)?.setProperties({ text: `${pre} ${a.name} - ${a.desc}`, color: a.unlocked ? '#00ff88' : '#666688' });
+    }
+  }
+}
+
+
+// ---- Main Entry ----
+async function main() {
+  const container = document.getElementById('scene-container') as HTMLDivElement;
+
+  const world = await World.create(container, {
+    xr: { offer: 'once' },
+    features: {
+      grabbing: false,
+      locomotion: false,
+      physics: false,
+      spatialUI: true,
+    },
+    render: {
+      fov: 60,
+      near: 0.05,
+      far: 250,
+      defaultLighting: false,
+    },
+  });
+
+  // Camera
+  world.camera.position.set(0, 1.7, 0);
+
+  // Shared state
+  const game = new GameManager();
+  const audio = new AudioManager();
+  const keys = new KeyState();
+  const particles = new ParticlePool(world.scene);
+  let currentTheme = THEMES[game.theme];
+
+  // Lighting
+  const ambient = new AmbientLight(currentTheme.ambient, 0.6);
+  world.scene.add(ambient);
+  const dirLight = new DirectionalLight(0xffffff, 0.3);
+  dirLight.position.set(5, 10, 5);
+  world.scene.add(dirLight);
+  world.scene.fog = new Fog(currentTheme.fog, 15, 50);
+  (world.scene as any).background = new Color(currentTheme.bg);
+
+  // Scene objects
+  const starField = createStarField(world.scene);
+  const gridFloor = createGridFloor(world.scene, currentTheme.grid);
+
+  // Level data
+  let wells: GravityWell[] = [];
+  let targets: Target[] = [];
+  const probes: Probe[] = [];
+  for (let i = 0; i < MAX_PROBES; i++) probes.push(createProbe(world.scene));
+  const predLine = createPredictionLine(world.scene);
+  const launchInd = createLaunchIndicator(world.scene);
+
+  // Start/restart level
+  function startLevel(mode: GameMode, levelNum: number) {
+    // Clear old wells & targets
+    for (const w of wells) world.scene.remove(w.group);
+    for (const t of targets) world.scene.remove(t.group);
+    for (const p of probes) { p.alive = false; p.mesh.visible = false; p.trailLine.visible = false; }
+    predLine.visible = false; launchInd.visible = false;
+
+    game.mode = mode; game.level = levelNum; game.state = 'playing';
+    const lvl = generateLevel(levelNum, mode);
+    game.currentLevel = lvl; game.score = 0; game.probesUsed = 0;
+    game.probesRemaining = lvl.probeLimit; game.targetsCollected = 0;
+    game.targetsTotal = lvl.targets.length; game.elapsedTime = 0;
+    game.combo = 0; game.bestCombo = 0; game.lastCollectTime = 0;
+    game.charging = false; game.chargeAmount = 0;
+    game.slowMo = false; game.timeScale = 1;
+
+    wells = lvl.wells.map(cfg => createGravityWell(world.scene, cfg));
+    targets = lvl.targets.map(cfg => createTarget(world.scene, cfg));
+    game.wells = wells; game.targets = targets; game.probes = probes;
+
+    // Update system refs with new level data
+    physicsSys.setRefs({ game, audio, particles, probes, wells, targets });
+    inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd });
+  }
+
+  // Theme switcher
+  function applyTheme(t: ThemeName) {
+    currentTheme = THEMES[t];
+    ambient.color.set(currentTheme.ambient);
+    (world.scene as any).background = new Color(currentTheme.bg);
+    (world.scene.fog as Fog).color.set(currentTheme.fog);
+    // Update grid
+    gridFloor.traverse((child) => {
+      if ((child as any).isMesh || (child as any).isLineSegments) {
+        const mat = (child as Mesh).material as MeshBasicMaterial | LineBasicMaterial;
+        if (mat.color) mat.color.set(currentTheme.grid);
+      }
+    });
+  }
+
+  // ---- Create Panel UI entities ----
+  const panelConfigs: Array<{
+    name: string; config: string; maxW: number; maxH: number;
+    follow: boolean; offset?: [number, number, number]; visible?: boolean;
+  }> = [
+    { name: 'mainMenu', config: './ui/main-menu.json', maxW: 0.6, maxH: 0.8, follow: true, offset: [0, -0.05, -0.9], visible: true },
+    { name: 'hud', config: './ui/hud.json', maxW: 0.35, maxH: 0.12, follow: true, offset: [0.3, 0.15, -0.6] },
+    { name: 'gameOver', config: './ui/game-over.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'modeSelect', config: './ui/mode-select.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'howToPlay', config: './ui/how-to-play.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'settings', config: './ui/settings.json', maxW: 0.55, maxH: 0.65, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'stats', config: './ui/stats.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'achievements', config: './ui/achievements.json', maxW: 0.55, maxH: 0.8, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'pause', config: './ui/pause.json', maxW: 0.45, maxH: 0.5, follow: true, offset: [0, -0.05, -0.8] },
+    { name: 'themeSelect', config: './ui/theme-select.json', maxW: 0.5, maxH: 0.55, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'notification', config: './ui/notification.json', maxW: 0.35, maxH: 0.1, follow: true, offset: [0, 0.25, -0.65] },
+    { name: 'powerGauge', config: './ui/power-gauge.json', maxW: 0.2, maxH: 0.06, follow: true, offset: [0, -0.2, -0.55] },
+    { name: 'levelComplete', config: './ui/level-complete.json', maxW: 0.55, maxH: 0.65, follow: true, offset: [0, -0.05, -0.85] },
+    { name: 'dailyChallenge', config: './ui/daily-challenge.json', maxW: 0.55, maxH: 0.65, follow: true, offset: [0, -0.05, -0.85] },
+  ];
+
+  for (const pc of panelConfigs) {
+    const entity = world.createTransformEntity(undefined, { persistent: true });
+    entity.addComponent(PanelUI, { config: pc.config, maxWidth: pc.maxW, maxHeight: pc.maxH });
+    if (pc.follow) {
+      entity.addComponent(Follower, {
+        target: world.player.head,
+        offsetPosition: pc.offset || [0, 0, -0.8],
+        speed: 5,
+        tolerance: 0.3,
+      });
+    }
+    entity.object3D!.visible = pc.visible ?? false;
+  }
+
+  // ---- Register Systems ----
+  world.registerSystem(OrbitPhysicsSystem);
+  world.registerSystem(InputControlSystem);
+  world.registerSystem(GameUISystem);
+
+  // Get system instances and set refs
+  const physicsSys = world.getSystem(OrbitPhysicsSystem) as OrbitPhysicsSystem;
+  const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
+  const uiSys = world.getSystem(GameUISystem) as GameUISystem;
+
+  physicsSys.setRefs({ game, audio, particles, probes, wells, targets });
+  inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd });
+  uiSys.setRefs({ game, audio, onStart: startLevel, onTheme: applyTheme });
+}
+
+main();

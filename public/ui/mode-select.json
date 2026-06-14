@@ -1,0 +1,361 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "GAME MODES"
+        ],
+        "properties": {
+          "name": "title",
+          "fontsize": "32",
+          "fontweight": "bold",
+          "color": "#ffaa00",
+          "marginbottom": "20"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "CLASSIC - Collect all targets"
+            ],
+            "properties": {
+              "name": "btn-classic",
+              "fontsize": "18",
+              "color": "#00ffff",
+              "backgroundcolor": "#002233",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#00ffff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-4"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "SLINGSHOT - Use gravity assists"
+            ],
+            "properties": {
+              "name": "btn-slingshot",
+              "fontsize": "18",
+              "color": "#ff8844",
+              "backgroundcolor": "#331100",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ff8844",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-5"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "TIME TRIAL - Race the clock"
+            ],
+            "properties": {
+              "name": "btn-time-trial",
+              "fontsize": "18",
+              "color": "#ff44ff",
+              "backgroundcolor": "#330033",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ff44ff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-6"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "PRECISION - Tight orbits only"
+            ],
+            "properties": {
+              "name": "btn-precision",
+              "fontsize": "18",
+              "color": "#00ff88",
+              "backgroundcolor": "#003322",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#00ff88",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-7"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "CHAOS - Many gravity wells"
+            ],
+            "properties": {
+              "name": "btn-chaos",
+              "fontsize": "18",
+              "color": "#ff4444",
+              "backgroundcolor": "#330000",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ff4444",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-8"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "ZEN - No goals, pure orbits"
+            ],
+            "properties": {
+              "name": "btn-zen",
+              "fontsize": "18",
+              "color": "#8888ff",
+              "backgroundcolor": "#111133",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#8888ff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-9"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "SURVIVAL - Escalating challenge"
+            ],
+            "properties": {
+              "name": "btn-survival",
+              "fontsize": "18",
+              "color": "#ffff00",
+              "backgroundcolor": "#333300",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ffff00",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-10"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "DAILY CHALLENGE - Seeded puzzle"
+            ],
+            "properties": {
+              "name": "btn-daily",
+              "fontsize": "18",
+              "color": "#44aaff",
+              "backgroundcolor": "#001133",
+              "padding": "10",
+              "borderradius": "8",
+              "width": "100%",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#44aaff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-11"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "10",
+          "width": "100%"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BACK"
+        ],
+        "properties": {
+          "name": "btn-back",
+          "fontsize": "18",
+          "color": "#aaaaaa",
+          "backgroundcolor": "#222222",
+          "padding": "10",
+          "borderradius": "8",
+          "width": "200",
+          "textalign": "center",
+          "margintop": "15",
+          "borderwidth": "1",
+          "bordercolor": "#666666",
+          "cursor": "pointer"
+        },
+        "dataUid": "uid-12"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "alignitems": "center",
+      "justifycontent": "center",
+      "width": "500",
+      "height": "550",
+      "backgroundcolor": "#0a0a2e",
+      "borderradius": "20",
+      "padding": "30",
+      "borderwidth": "2",
+      "bordercolor": "#ffaa00"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 15,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 104
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 3,
+        "column": 2
+      },
+      "end": {
+        "line": 12,
+        "column": 14
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 4,
+        "column": 4
+      },
+      "end": {
+        "line": 4,
+        "column": 238
+      }
+    },
+    "uid-5": {
+      "start": {
+        "line": 5,
+        "column": 4
+      },
+      "end": {
+        "line": 5,
+        "column": 242
+      }
+    },
+    "uid-6": {
+      "start": {
+        "line": 6,
+        "column": 4
+      },
+      "end": {
+        "line": 6,
+        "column": 239
+      }
+    },
+    "uid-7": {
+      "start": {
+        "line": 7,
+        "column": 4
+      },
+      "end": {
+        "line": 7,
+        "column": 240
+      }
+    },
+    "uid-8": {
+      "start": {
+        "line": 8,
+        "column": 4
+      },
+      "end": {
+        "line": 8,
+        "column": 233
+      }
+    },
+    "uid-9": {
+      "start": {
+        "line": 9,
+        "column": 4
+      },
+      "end": {
+        "line": 9,
+        "column": 232
+      }
+    },
+    "uid-10": {
+      "start": {
+        "line": 10,
+        "column": 4
+      },
+      "end": {
+        "line": 10,
+        "column": 241
+      }
+    },
+    "uid-11": {
+      "start": {
+        "line": 11,
+        "column": 4
+      },
+      "end": {
+        "line": 11,
+        "column": 238
+      }
+    },
+    "uid-12": {
+      "start": {
+        "line": 14,
+        "column": 2
+      },
+      "end": {
+        "line": 14,
+        "column": 222
+      }
+    }
+  }
+}

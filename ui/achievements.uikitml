@@ -1,0 +1,29 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="500" height="550" backgroundColor="#0a0a2e" borderRadius="20" padding="25" borderWidth="2" borderColor="#ff44ff">
+  <text name="title" fontSize="32" fontWeight="bold" color="#ff44ff" marginBottom="10">ACHIEVEMENTS</text>
+  <text name="progress" fontSize="14" color="#aa88ff" marginBottom="15">0 / 40 Unlocked</text>
+
+  <container flexDirection="column" gap="6" width="100%" overflow="scroll">
+    <text name="ach-0" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] First Contact - Collect your first target</text>
+    <text name="ach-1" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Orbital Mechanic - Complete 5 levels</text>
+    <text name="ach-2" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Slingshot Master - Use 3 gravity assists</text>
+    <text name="ach-3" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Sharp Shooter - 100% accuracy on a level</text>
+    <text name="ach-4" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Speed Runner - Clear level under 30s</text>
+    <text name="ach-5" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Combo King - Reach x5 combo</text>
+    <text name="ach-6" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Efficient Pilot - Use 1 probe for 3 targets</text>
+    <text name="ach-7" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Marathon - Play for 30 minutes</text>
+    <text name="ach-8" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Collector - Gather 100 total targets</text>
+    <text name="ach-9" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Planet Hugger - Orbit a planet 3 times</text>
+    <text name="ach-10" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Zero G - Complete a Zen session</text>
+    <text name="ach-11" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Daily Driver - Complete 7 daily challenges</text>
+    <text name="ach-12" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Chaos Theory - Clear a Chaos level</text>
+    <text name="ach-13" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Survivor - Reach wave 10 in Survival</text>
+    <text name="ach-14" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Time Warp - Use slow-mo 50 times</text>
+    <text name="ach-15" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Gravity Surfer - Pass within 0.5m of a planet</text>
+    <text name="ach-16" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Multi-orbit - Have 5 probes orbiting at once</text>
+    <text name="ach-17" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Score Hunter - Reach 10,000 total score</text>
+    <text name="ach-18" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Triple Star - Get 3-star on 10 levels</text>
+    <text name="ach-19" fontSize="13" color="#666688" padding="6" backgroundColor="#111122" borderRadius="6" width="100%">[?] Minimalist - Clear a level with 1 probe</text>
+  </container>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="12" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

@@ -1,0 +1,61 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="500" height="550" backgroundColor="#0a0a2e" borderRadius="20" padding="25" borderWidth="2" borderColor="#44aaff">
+  <text name="title" fontSize="32" fontWeight="bold" color="#44aaff" marginBottom="15">STATISTICS</text>
+
+  <container flexDirection="column" gap="8" width="100%">
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Total Score</text>
+      <text name="total-score" fontSize="14" fontWeight="bold" color="#00ffff">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Games Played</text>
+      <text name="games-played" fontSize="14" fontWeight="bold" color="#00ffff">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Probes Launched</text>
+      <text name="probes-launched" fontSize="14" fontWeight="bold" color="#ff8844">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Targets Collected</text>
+      <text name="targets-collected" fontSize="14" fontWeight="bold" color="#00ff88">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Accuracy</text>
+      <text name="accuracy" fontSize="14" fontWeight="bold" color="#ffaa00">0%</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Best Combo</text>
+      <text name="best-combo" fontSize="14" fontWeight="bold" color="#ffff00">x0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Planets Crashed Into</text>
+      <text name="crashes" fontSize="14" fontWeight="bold" color="#ff4444">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Perfect Levels</text>
+      <text name="perfect-levels" fontSize="14" fontWeight="bold" color="#ffaa00">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Longest Orbit</text>
+      <text name="longest-orbit" fontSize="14" fontWeight="bold" color="#ff44ff">0s</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Total Play Time</text>
+      <text name="play-time" fontSize="14" fontWeight="bold" color="#8888ff">0m</text>
+    </container>
+  </container>
+
+  <container flexDirection="row" justifyContent="space-between" width="100%" marginTop="15">
+    <text fontSize="14" color="#aaaacc">Player Level</text>
+    <text name="player-level" fontSize="18" fontWeight="bold" color="#00ffff">Lv. 1</text>
+  </container>
+  <container flexDirection="row" justifyContent="space-between" width="100%" marginTop="5">
+    <text fontSize="14" color="#aaaacc">Title</text>
+    <text name="player-title" fontSize="14" fontWeight="bold" color="#ffaa00">Cadet</text>
+  </container>
+  <container width="100%" height="8" backgroundColor="#222244" borderRadius="4" marginTop="8">
+    <container name="xp-bar" width="0%" height="8" backgroundColor="#00ffff" borderRadius="4"></container>
+  </container>
+  <text name="xp-text" fontSize="10" color="#666688" marginTop="4">0 / 100 XP</text>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="12" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

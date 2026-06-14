@@ -1,0 +1,20 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="450" height="400" backgroundColor="#0a0a2e" borderRadius="20" padding="30" borderWidth="2" borderColor="#8888ff">
+  <text name="title" fontSize="32" fontWeight="bold" color="#8888ff" marginBottom="15">HOW TO PLAY</text>
+
+  <container flexDirection="column" gap="10" width="100%" marginBottom="20">
+    <text fontSize="14" color="#ccccff">1. AIM your launcher at the field</text>
+    <text fontSize="14" color="#ccccff">2. HOLD trigger to charge power</text>
+    <text fontSize="14" color="#ccccff">3. RELEASE to launch a probe</text>
+    <text fontSize="14" color="#ccccff">4. Watch gravity bend the path</text>
+    <text fontSize="14" color="#ccccff">5. Collect targets to score</text>
+    <text fontSize="14" color="#ccccff">6. Avoid crashing into planets</text>
+  </container>
+
+  <container flexDirection="column" gap="6" width="100%" marginBottom="15">
+    <text fontSize="12" color="#ffaa00">VR: Trigger = charge/launch, Grip = slow-mo</text>
+    <text fontSize="12" color="#ffaa00">Browser: Click = charge/launch, Shift = slow-mo</text>
+    <text fontSize="12" color="#ffaa00">Thumbstick/WASD = aim adjustment</text>
+  </container>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

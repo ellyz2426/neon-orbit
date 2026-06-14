@@ -1,0 +1,4 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="300" height="80" backgroundColor="#00ff8844" borderRadius="12" padding="10" borderWidth="1" borderColor="#00ff88">
+  <text name="notif-text" fontSize="16" fontWeight="bold" color="#00ff88">Achievement Unlocked!</text>
+  <text name="notif-detail" fontSize="12" color="#ccffcc">---</text>
+</container>

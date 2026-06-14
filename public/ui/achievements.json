@@ -1,0 +1,678 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "ACHIEVEMENTS"
+        ],
+        "properties": {
+          "name": "title",
+          "fontsize": "32",
+          "fontweight": "bold",
+          "color": "#ff44ff",
+          "marginbottom": "10"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "0 / 40 Unlocked"
+        ],
+        "properties": {
+          "name": "progress",
+          "fontsize": "14",
+          "color": "#aa88ff",
+          "marginbottom": "15"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] First Contact - Collect your first target"
+            ],
+            "properties": {
+              "name": "ach-0",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-5"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Orbital Mechanic - Complete 5 levels"
+            ],
+            "properties": {
+              "name": "ach-1",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-6"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Slingshot Master - Use 3 gravity assists"
+            ],
+            "properties": {
+              "name": "ach-2",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-7"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Sharp Shooter - 100% accuracy on a level"
+            ],
+            "properties": {
+              "name": "ach-3",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-8"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Speed Runner - Clear level under 30s"
+            ],
+            "properties": {
+              "name": "ach-4",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-9"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Combo King - Reach x5 combo"
+            ],
+            "properties": {
+              "name": "ach-5",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-10"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Efficient Pilot - Use 1 probe for 3 targets"
+            ],
+            "properties": {
+              "name": "ach-6",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-11"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Marathon - Play for 30 minutes"
+            ],
+            "properties": {
+              "name": "ach-7",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-12"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Collector - Gather 100 total targets"
+            ],
+            "properties": {
+              "name": "ach-8",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-13"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Planet Hugger - Orbit a planet 3 times"
+            ],
+            "properties": {
+              "name": "ach-9",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-14"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Zero G - Complete a Zen session"
+            ],
+            "properties": {
+              "name": "ach-10",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-15"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Daily Driver - Complete 7 daily challenges"
+            ],
+            "properties": {
+              "name": "ach-11",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-16"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Chaos Theory - Clear a Chaos level"
+            ],
+            "properties": {
+              "name": "ach-12",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-17"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Survivor - Reach wave 10 in Survival"
+            ],
+            "properties": {
+              "name": "ach-13",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-18"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Time Warp - Use slow-mo 50 times"
+            ],
+            "properties": {
+              "name": "ach-14",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-19"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Gravity Surfer - Pass within 0.5m of a planet"
+            ],
+            "properties": {
+              "name": "ach-15",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-20"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Multi-orbit - Have 5 probes orbiting at once"
+            ],
+            "properties": {
+              "name": "ach-16",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-21"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Score Hunter - Reach 10,000 total score"
+            ],
+            "properties": {
+              "name": "ach-17",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-22"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Triple Star - Get 3-star on 10 levels"
+            ],
+            "properties": {
+              "name": "ach-18",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-23"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "[?] Minimalist - Clear a level with 1 probe"
+            ],
+            "properties": {
+              "name": "ach-19",
+              "fontsize": "13",
+              "color": "#666688",
+              "padding": "6",
+              "backgroundcolor": "#111122",
+              "borderradius": "6",
+              "width": "100%"
+            },
+            "dataUid": "uid-24"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "6",
+          "width": "100%",
+          "overflow": "scroll"
+        },
+        "dataUid": "uid-4"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BACK"
+        ],
+        "properties": {
+          "name": "btn-back",
+          "fontsize": "18",
+          "color": "#aaaaaa",
+          "backgroundcolor": "#222222",
+          "padding": "10",
+          "borderradius": "8",
+          "width": "200",
+          "textalign": "center",
+          "margintop": "12",
+          "borderwidth": "1",
+          "bordercolor": "#666666",
+          "cursor": "pointer"
+        },
+        "dataUid": "uid-25"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "alignitems": "center",
+      "justifycontent": "center",
+      "width": "500",
+      "height": "550",
+      "backgroundcolor": "#0a0a2e",
+      "borderradius": "20",
+      "padding": "25",
+      "borderwidth": "2",
+      "bordercolor": "#ff44ff"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 28,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 106
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 2,
+        "column": 2
+      },
+      "end": {
+        "line": 2,
+        "column": 94
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 4,
+        "column": 2
+      },
+      "end": {
+        "line": 25,
+        "column": 14
+      }
+    },
+    "uid-5": {
+      "start": {
+        "line": 5,
+        "column": 4
+      },
+      "end": {
+        "line": 5,
+        "column": 173
+      }
+    },
+    "uid-6": {
+      "start": {
+        "line": 6,
+        "column": 4
+      },
+      "end": {
+        "line": 6,
+        "column": 168
+      }
+    },
+    "uid-7": {
+      "start": {
+        "line": 7,
+        "column": 4
+      },
+      "end": {
+        "line": 7,
+        "column": 172
+      }
+    },
+    "uid-8": {
+      "start": {
+        "line": 8,
+        "column": 4
+      },
+      "end": {
+        "line": 8,
+        "column": 172
+      }
+    },
+    "uid-9": {
+      "start": {
+        "line": 9,
+        "column": 4
+      },
+      "end": {
+        "line": 9,
+        "column": 168
+      }
+    },
+    "uid-10": {
+      "start": {
+        "line": 10,
+        "column": 4
+      },
+      "end": {
+        "line": 10,
+        "column": 159
+      }
+    },
+    "uid-11": {
+      "start": {
+        "line": 11,
+        "column": 4
+      },
+      "end": {
+        "line": 11,
+        "column": 175
+      }
+    },
+    "uid-12": {
+      "start": {
+        "line": 12,
+        "column": 4
+      },
+      "end": {
+        "line": 12,
+        "column": 162
+      }
+    },
+    "uid-13": {
+      "start": {
+        "line": 13,
+        "column": 4
+      },
+      "end": {
+        "line": 13,
+        "column": 168
+      }
+    },
+    "uid-14": {
+      "start": {
+        "line": 14,
+        "column": 4
+      },
+      "end": {
+        "line": 14,
+        "column": 170
+      }
+    },
+    "uid-15": {
+      "start": {
+        "line": 15,
+        "column": 4
+      },
+      "end": {
+        "line": 15,
+        "column": 164
+      }
+    },
+    "uid-16": {
+      "start": {
+        "line": 16,
+        "column": 4
+      },
+      "end": {
+        "line": 16,
+        "column": 175
+      }
+    },
+    "uid-17": {
+      "start": {
+        "line": 17,
+        "column": 4
+      },
+      "end": {
+        "line": 17,
+        "column": 167
+      }
+    },
+    "uid-18": {
+      "start": {
+        "line": 18,
+        "column": 4
+      },
+      "end": {
+        "line": 18,
+        "column": 169
+      }
+    },
+    "uid-19": {
+      "start": {
+        "line": 19,
+        "column": 4
+      },
+      "end": {
+        "line": 19,
+        "column": 165
+      }
+    },
+    "uid-20": {
+      "start": {
+        "line": 20,
+        "column": 4
+      },
+      "end": {
+        "line": 20,
+        "column": 178
+      }
+    },
+    "uid-21": {
+      "start": {
+        "line": 21,
+        "column": 4
+      },
+      "end": {
+        "line": 21,
+        "column": 177
+      }
+    },
+    "uid-22": {
+      "start": {
+        "line": 22,
+        "column": 4
+      },
+      "end": {
+        "line": 22,
+        "column": 172
+      }
+    },
+    "uid-23": {
+      "start": {
+        "line": 23,
+        "column": 4
+      },
+      "end": {
+        "line": 23,
+        "column": 170
+      }
+    },
+    "uid-24": {
+      "start": {
+        "line": 24,
+        "column": 4
+      },
+      "end": {
+        "line": 24,
+        "column": 172
+      }
+    },
+    "uid-25": {
+      "start": {
+        "line": 27,
+        "column": 2
+      },
+      "end": {
+        "line": 27,
+        "column": 222
+      }
+    }
+  }
+}

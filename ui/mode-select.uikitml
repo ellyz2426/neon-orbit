@@ -1,0 +1,16 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="500" height="550" backgroundColor="#0a0a2e" borderRadius="20" padding="30" borderWidth="2" borderColor="#ffaa00">
+  <text name="title" fontSize="32" fontWeight="bold" color="#ffaa00" marginBottom="20">GAME MODES</text>
+
+  <container flexDirection="column" gap="10" width="100%">
+    <text name="btn-classic" fontSize="18" color="#00ffff" backgroundColor="#002233" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#00ffff" cursor="pointer">CLASSIC - Collect all targets</text>
+    <text name="btn-slingshot" fontSize="18" color="#ff8844" backgroundColor="#331100" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#ff8844" cursor="pointer">SLINGSHOT - Use gravity assists</text>
+    <text name="btn-time-trial" fontSize="18" color="#ff44ff" backgroundColor="#330033" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#ff44ff" cursor="pointer">TIME TRIAL - Race the clock</text>
+    <text name="btn-precision" fontSize="18" color="#00ff88" backgroundColor="#003322" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#00ff88" cursor="pointer">PRECISION - Tight orbits only</text>
+    <text name="btn-chaos" fontSize="18" color="#ff4444" backgroundColor="#330000" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#ff4444" cursor="pointer">CHAOS - Many gravity wells</text>
+    <text name="btn-zen" fontSize="18" color="#8888ff" backgroundColor="#111133" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#8888ff" cursor="pointer">ZEN - No goals, pure orbits</text>
+    <text name="btn-survival" fontSize="18" color="#ffff00" backgroundColor="#333300" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#ffff00" cursor="pointer">SURVIVAL - Escalating challenge</text>
+    <text name="btn-daily" fontSize="18" color="#44aaff" backgroundColor="#001133" padding="10" borderRadius="8" width="100%" textAlign="center" borderWidth="1" borderColor="#44aaff" cursor="pointer">DAILY CHALLENGE - Seeded puzzle</text>
+  </container>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="15" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

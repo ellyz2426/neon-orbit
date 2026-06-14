@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "date": "2026-06-14",
+  "game_name": "neon-orbit",
+  "game_dir": "/home/hatch/workspace/neon-orbit",
+  "repo_url": "https://github.com/ellyz2426/neon-orbit",
+  "pages_url": "https://ellyz2426.github.io/neon-orbit/",
+  "build_start_utc": "2026-06-14T07:00:00Z",
+  "target_hours": 6,
+  "total_build_minutes": 0,
+  "status": "building",
+  "rounds": [],
+  "features_completed": [],
+  "last_updated_utc": "2026-06-14T07:56:00Z"
+}

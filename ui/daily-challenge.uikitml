@@ -1,0 +1,42 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="500" height="500" backgroundColor="#0a0a2e" borderRadius="20" padding="25" borderWidth="2" borderColor="#44aaff">
+  <text name="title" fontSize="28" fontWeight="bold" color="#44aaff" marginBottom="5">DAILY CHALLENGE</text>
+  <text name="date" fontSize="14" color="#8888ff" marginBottom="15">2026-06-14</text>
+
+  <container flexDirection="column" gap="6" width="100%" marginBottom="15">
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Planets</text>
+      <text name="daily-planets" fontSize="14" fontWeight="bold" color="#00ffff">4</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Targets</text>
+      <text name="daily-targets" fontSize="14" fontWeight="bold" color="#00ff88">8</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Probes</text>
+      <text name="daily-probes" fontSize="14" fontWeight="bold" color="#ff8844">6</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Difficulty</text>
+      <text name="daily-diff" fontSize="14" fontWeight="bold" color="#ff44ff">Expert</text>
+    </container>
+  </container>
+
+  <container flexDirection="column" gap="6" width="100%" marginBottom="15">
+    <text fontSize="16" fontWeight="bold" color="#ffaa00">Your Best</text>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Score</text>
+      <text name="best-score" fontSize="14" fontWeight="bold" color="#ffaa00">---</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Time</text>
+      <text name="best-time" fontSize="14" fontWeight="bold" color="#ffaa00">---</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="14" color="#aaaacc">Streak</text>
+      <text name="streak" fontSize="14" fontWeight="bold" color="#ffaa00">0 days</text>
+    </container>
+  </container>
+
+  <text name="btn-start-daily" fontSize="20" color="#44aaff" backgroundColor="#001133" padding="12" borderRadius="8" width="250" textAlign="center" borderWidth="1" borderColor="#44aaff" cursor="pointer">START CHALLENGE</text>
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="10" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

@@ -1,0 +1,32 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="450" height="400" backgroundColor="#0a0a2e" borderRadius="20" padding="30" borderWidth="2" borderColor="#aaaaaa">
+  <text name="title" fontSize="32" fontWeight="bold" color="#aaaaaa" marginBottom="20">SETTINGS</text>
+
+  <container flexDirection="column" gap="12" width="100%">
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">Music Volume</text>
+      <text name="music-vol" fontSize="16" color="#00ffff" cursor="pointer">80%</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">SFX Volume</text>
+      <text name="sfx-vol" fontSize="16" color="#00ffff" cursor="pointer">100%</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">Trajectory Preview</text>
+      <text name="preview-toggle" fontSize="16" color="#00ff88" cursor="pointer">ON</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">Trail Length</text>
+      <text name="trail-len" fontSize="16" color="#ffaa00" cursor="pointer">Long</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">Theme</text>
+      <text name="theme-name" fontSize="16" color="#ff44ff" cursor="pointer">Deep Space</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+      <text fontSize="16" color="#cccccc">Gravity Lines</text>
+      <text name="grav-lines" fontSize="16" color="#00ff88" cursor="pointer">ON</text>
+    </container>
+  </container>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="20" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

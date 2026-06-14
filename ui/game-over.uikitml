@@ -1,0 +1,42 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="450" height="500" backgroundColor="#0a0a2e" borderRadius="20" padding="30" borderWidth="2" borderColor="#00ffff">
+  <text name="title" fontSize="36" fontWeight="bold" color="#00ffff" marginBottom="5">ORBIT COMPLETE</text>
+  <text name="subtitle" fontSize="16" color="#8888ff" marginBottom="20">Mission Report</text>
+
+  <container flexDirection="column" width="100%" gap="8" marginBottom="20">
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Score</text>
+      <text name="final-score" fontSize="20" fontWeight="bold" color="#00ffff">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Targets</text>
+      <text name="final-targets" fontSize="20" fontWeight="bold" color="#00ff88">0/0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Probes Used</text>
+      <text name="final-probes" fontSize="20" fontWeight="bold" color="#ff8844">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Accuracy</text>
+      <text name="final-accuracy" fontSize="20" fontWeight="bold" color="#ffaa00">0%</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Time</text>
+      <text name="final-time" fontSize="20" fontWeight="bold" color="#ff44ff">0:00</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="16" color="#aaaacc">Best Combo</text>
+      <text name="final-combo" fontSize="20" fontWeight="bold" color="#ffff00">x0</text>
+    </container>
+  </container>
+
+  <container flexDirection="row" justifyContent="space-between" width="100%" marginBottom="10">
+    <text name="rating" fontSize="36" fontWeight="bold" color="#ffaa00">---</text>
+    <text name="xp-gained" fontSize="18" color="#00ff88">+0 XP</text>
+  </container>
+
+  <container flexDirection="column" gap="10" width="100%">
+    <text name="btn-retry" fontSize="20" color="#00ff88" backgroundColor="#003322" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#00ff88" cursor="pointer">RETRY</text>
+    <text name="btn-next" fontSize="20" color="#00ffff" backgroundColor="#002233" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#00ffff" cursor="pointer">NEXT LEVEL</text>
+    <text name="btn-menu" fontSize="20" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#666666" cursor="pointer">MAIN MENU</text>
+  </container>
+</container>

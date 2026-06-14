@@ -1,0 +1,13 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="350" height="200" backgroundColor="#0a0a2e" borderRadius="16" padding="20" borderWidth="2" borderColor="#00ffff">
+  <text name="title" fontSize="24" fontWeight="bold" color="#00ffff" marginBottom="10">LEVEL COMPLETE</text>
+  <container flexDirection="row" justifyContent="center" gap="10" marginBottom="10">
+    <text name="star-1" fontSize="32" color="#444466">*</text>
+    <text name="star-2" fontSize="32" color="#444466">*</text>
+    <text name="star-3" fontSize="32" color="#444466">*</text>
+  </container>
+  <text name="score-text" fontSize="16" color="#aaaacc">Score: 0</text>
+  <container flexDirection="row" gap="10" marginTop="10">
+    <text name="btn-next-lvl" fontSize="16" color="#00ff88" backgroundColor="#003322" padding="8" borderRadius="6" borderWidth="1" borderColor="#00ff88" cursor="pointer">NEXT</text>
+    <text name="btn-replay" fontSize="16" color="#ffaa00" backgroundColor="#332200" padding="8" borderRadius="6" borderWidth="1" borderColor="#ffaa00" cursor="pointer">REPLAY</text>
+  </container>
+</container>

@@ -1,0 +1,13 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" width="450" height="450" backgroundColor="#0a0a2e" borderRadius="20" padding="25" borderWidth="2" borderColor="#ff44ff">
+  <text name="title" fontSize="28" fontWeight="bold" color="#ff44ff" marginBottom="10">SELECT THEME</text>
+
+  <container flexDirection="column" gap="10" width="100%">
+    <text name="btn-deep-space" fontSize="16" color="#4444ff" backgroundColor="#111133" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#4444ff" cursor="pointer">Deep Space - Classic dark void</text>
+    <text name="btn-nebula" fontSize="16" color="#ff44ff" backgroundColor="#220022" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#ff44ff" cursor="pointer">Nebula - Purple cosmic clouds</text>
+    <text name="btn-solar" fontSize="16" color="#ffaa00" backgroundColor="#332200" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#ffaa00" cursor="pointer">Solar Flare - Warm orange glow</text>
+    <text name="btn-ice" fontSize="16" color="#88ddff" backgroundColor="#112233" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#88ddff" cursor="pointer">Ice Giant - Cool blue tones</text>
+    <text name="btn-void" fontSize="16" color="#00ff88" backgroundColor="#002211" padding="10" borderRadius="8" textAlign="center" borderWidth="1" borderColor="#00ff88" cursor="pointer">Void - Minimal green wireframe</text>
+  </container>
+
+  <text name="btn-back" fontSize="18" color="#aaaaaa" backgroundColor="#222222" padding="10" borderRadius="8" width="200" textAlign="center" marginTop="15" borderWidth="1" borderColor="#666666" cursor="pointer">BACK</text>
+</container>

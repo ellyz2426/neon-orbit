@@ -1,0 +1,25 @@
+<container flexDirection="column" alignItems="center" width="400" height="120" backgroundColor="#0a0a1acc" borderRadius="12" padding="12" borderWidth="1" borderColor="#00ffff44">
+  <container flexDirection="row" justifyContent="space-between" width="100%" marginBottom="8">
+    <container flexDirection="column" alignItems="center">
+      <text name="score-label" fontSize="10" color="#00ffff88">SCORE</text>
+      <text name="score" fontSize="28" fontWeight="bold" color="#00ffff">0</text>
+    </container>
+    <container flexDirection="column" alignItems="center">
+      <text name="probes-label" fontSize="10" color="#ff884488">PROBES</text>
+      <text name="probes" fontSize="28" fontWeight="bold" color="#ff8844">10</text>
+    </container>
+    <container flexDirection="column" alignItems="center">
+      <text name="targets-label" fontSize="10" color="#00ff8888">TARGETS</text>
+      <text name="targets" fontSize="28" fontWeight="bold" color="#00ff88">0/5</text>
+    </container>
+    <container flexDirection="column" alignItems="center">
+      <text name="time-label" fontSize="10" color="#ff44ff88">TIME</text>
+      <text name="time" fontSize="28" fontWeight="bold" color="#ff44ff">0:00</text>
+    </container>
+  </container>
+  <container flexDirection="row" justifyContent="space-between" width="100%" alignItems="center">
+    <text name="level" fontSize="12" color="#aaaacc">Level 1</text>
+    <text name="mode" fontSize="12" color="#ffaa00">Classic</text>
+    <text name="combo" fontSize="14" fontWeight="bold" color="#ffff00" opacity="0">x2 COMBO</text>
+  </container>
+</container>
