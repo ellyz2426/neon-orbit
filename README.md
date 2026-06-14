@@ -12,10 +12,15 @@ A gravity slingshot puzzle game built with IWSDK. Launch probes through gravitat
 - **XP & leveling** — Earn experience, unlock titles from Cadet to Ascended
 - **Power-ups** — Shield, Magnet, Multi-Shot, Time Freeze
 - **Wormhole portals** — Teleport probes across the field
-- **5 visual themes** — Deep Space, Nebula, Solar, Ice, Void
-- **Procedural audio** — Adaptive music that responds to gameplay intensity
+- **5 visual themes** — Deep Space, Nebula, Solar, Ice, Void with theme-reactive audio tuning
+- **Procedural audio** — Adaptive music that responds to gameplay intensity, theme-specific tuning
 - **Full persistence** — Stats, achievements, settings, and high scores saved locally
 - **Level progression** — 50 levels per mode with star ratings and high score tracking
+- **Proximity danger warnings** — Visual and audio alerts when probes approach gravity wells
+- **Gravity interaction lines** — Real-time visualization of gravitational pull on active probes
+- **Tutorial system** — Guided hints for new players with auto-advance
+- **Survival waves** — Wave banner notifications with progressive difficulty descriptions
+- **Level celebrations** — Particle bursts and fanfares on completion, extra effects for 3-star ratings
 
 ## Controls
 
