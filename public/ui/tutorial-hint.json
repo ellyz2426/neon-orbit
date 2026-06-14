@@ -1,0 +1,105 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "TIP"
+        ],
+        "properties": {
+          "name": "hint-icon",
+          "fontsize": "14",
+          "color": "#ffaa00",
+          "fontweight": "bold"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Hold trigger to charge, release to launch"
+        ],
+        "properties": {
+          "name": "hint-text",
+          "fontsize": "10",
+          "color": "#aabbdd",
+          "textalign": "center"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[tap to dismiss]"
+        ],
+        "properties": {
+          "name": "hint-dismiss",
+          "fontsize": "8",
+          "color": "#667799",
+          "cursor": "pointer"
+        },
+        "dataUid": "uid-4"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "backgroundcolor": "#000022",
+      "backgroundopacity": "0.85",
+      "borderradius": "12",
+      "padding": "8",
+      "gap": "4",
+      "alignitems": "center",
+      "width": "400",
+      "height": "80"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 4,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 83
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 2,
+        "column": 2
+      },
+      "end": {
+        "line": 2,
+        "column": 122
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 3,
+        "column": 2
+      },
+      "end": {
+        "line": 3,
+        "column": 97
+      }
+    }
+  }
+}

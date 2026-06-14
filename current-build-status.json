@@ -8,7 +8,7 @@
   "build_start_utc": "2026-06-14T07:00:00Z",
   "target_hours": 6,
   "total_build_minutes": 100,
-  "status": "waiting_continuation",
+  "status": "building",
   "rounds": [
     {
       "round": 2,
@@ -104,5 +104,5 @@
     "directional-particles",
     "state-watcher-system"
   ],
-  "last_updated_utc": "2026-06-14T10:10:28Z"
+  "last_updated_utc": "2026-06-14T11:59:22Z"
 }

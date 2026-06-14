@@ -1,0 +1,4 @@
+<container flexDirection="column" backgroundColor="#000033" backgroundOpacity="0.9" borderRadius="16" padding="12" gap="4" alignItems="center" width="400" height="100">
+  <text name="wave-label" fontSize="22" color="#ffaa00" fontWeight="bold">WAVE 1</text>
+  <text name="wave-desc" fontSize="10" color="#8899bb">Survive the gravity fields!</text>
+</container>

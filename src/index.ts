@@ -29,6 +29,25 @@ const MAGNET_RANGE = 3.0;
 const MAGNET_FORCE = 2.0;
 const WORMHOLE_RADIUS = 0.4;
 const SHAKE_DECAY = 5.0;
+// R3: Proximity danger constants
+const DANGER_ZONE_MULT = 3.0; // danger zone = well.radius * this
+const DANGER_WARNING_INTERVAL = 0.5; // seconds between warning beeps
+const DANGER_FLASH_SPEED = 8.0; // flash speed when in danger
+// R3: Gravity interaction line constants
+const GRAV_LINE_MAX_DIST = 8.0;
+const GRAV_LINE_COUNT = 3; // max lines shown from probe to nearest wells
+// R3: Level celebration constants
+const CELEBRATION_DURATION = 2.0;
+// R3: Tutorial hints
+const TUTORIAL_HINTS = [
+  'Hold trigger/SPACE to charge, release to launch your probe',
+  'Green gems are targets -- fly your probe close to collect them',
+  'Use slow-motion (squeeze/SHIFT) to plan tricky shots',
+  'Trajectory preview shows where your probe will travel',
+  'Gravity wells bend your path -- use them for slingshots!',
+  'Power-ups give special abilities -- shield, magnet, multi-shot, time-freeze',
+  'Press F to follow your probe with the camera',
+];
 // R2: Shooting star constants
 const SHOOTING_STAR_INTERVAL_MIN = 3;
 const SHOOTING_STAR_INTERVAL_MAX = 8;
@@ -86,6 +105,12 @@ interface Achievement { id: string; name: string; desc: string; unlocked: boolea
 interface ShootingStar { line: Line; position: Vector3; velocity: Vector3; life: number; maxLife: number; active: boolean; }
 // R2: Energy beam data
 interface EnergyBeam { line: Line; wellA: number; wellB: number; phase: number; }
+// R3: Gravity interaction lines (probe-to-well)
+interface GravInteractionLine { line: Line; active: boolean; }
+// R3: Level celebration state
+interface CelebrationState { active: boolean; timer: number; threeStars: boolean; }
+// R3: Tutorial state
+interface TutorialState { hintIndex: number; shown: boolean; hintsCompleted: boolean; dismissTimer: number; }
 
 // ---- Keyboard State (browser fallback) ----
 class KeyState {
@@ -196,6 +221,9 @@ class GameSaveManager {
         theme: game.theme, showTrajectory: game.showTrajectory, trailLen: game.trailLen,
         showGravityLines: game.showGravityLines,
         lastDailyDate: game.lastDailyDate,
+        // R3: Tutorial and survival
+        tutorialComplete: game.tutorialComplete,
+        tutorialHintsShown: game.tutorialHintsShown,
       };
       localStorage.setItem(GameSaveManager.KEY, JSON.stringify(data));
     } catch (_e) { /* no-op */ }
@@ -236,6 +264,9 @@ class GameSaveManager {
       if (typeof d.trailLen === 'string') game.trailLen = d.trailLen as 'short' | 'medium' | 'long';
       if (typeof d.showGravityLines === 'boolean') game.showGravityLines = d.showGravityLines;
       if (typeof d.lastDailyDate === 'string') game.lastDailyDate = d.lastDailyDate;
+      // R3: Tutorial state
+      if (typeof d.tutorialComplete === 'boolean') game.tutorialComplete = d.tutorialComplete;
+      if (typeof d.tutorialHintsShown === 'number') game.tutorialHintsShown = d.tutorialHintsShown;
     } catch (_e) { /* no-op */ }
   }
 }
@@ -501,6 +532,49 @@ class AudioManager {
     });
   }
 
+  // R3: Proximity warning beep
+  playDangerWarning(proximity: number) {
+    const ctx = this.ensureCtx();
+    const freq = 400 + proximity * 800; // higher pitch = closer
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = freq;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.04 + proximity * 0.06, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.06);
+  }
+
+  // R3: Celebration fanfare
+  playCelebration(threeStars: boolean) {
+    const ctx = this.ensureCtx();
+    const notes = threeStars ? [523, 659, 784, 880, 1047, 1175, 1319, 1568] : [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = threeStars ? 'sine' : 'triangle'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.6);
+      o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.1); o.stop(ctx.currentTime + i * 0.1 + 0.6);
+    });
+  }
+
+  // R3: Wave start sound
+  playWaveStart() {
+    const ctx = this.ensureCtx();
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(220, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.3);
+  }
+
+  // R3: Theme-reactive audio tuning
+  setThemeTuning(theme: ThemeName) {
+    if (!this.droneOsc) return;
+    const tunings: Record<ThemeName, number> = {
+      'deep-space': 55, 'nebula': 49, 'solar': 65, 'ice': 58, 'void': 41,
+    };
+    const t = this.ctx!.currentTime;
+    this.droneOsc.frequency.setTargetAtTime(tunings[theme], t, 0.5);
+  }
+
   setMusicVolume(v: number) { this.musicVolume = v; if (this.musicGain) this.musicGain.gain.value = v * 0.3; }
   setSfxVolume(v: number) { this.sfxVolume = v; if (this.sfxGain) this.sfxGain.gain.value = v; }
 }
@@ -729,6 +803,14 @@ class GameManager {
   modesPlayed = new Set<GameMode>(); slowMoCount = 0; tripleStarCount = 0; levelsCompleted = 0;
   pendingAchievements: Achievement[] = [];
   magnetCollects = 0; freezeCollects = 0;
+  // R3: Survival wave tracking
+  survivalWave = 1; survivalTargetsThisWave = 0; survivalWaveBannerTimer = 0;
+  // R3: Tutorial
+  tutorialHintsShown = 0; tutorialComplete = false;
+  // R3: Celebration
+  celebration: CelebrationState = { active: false, timer: 0, threeStars: false };
+  // R3: Proximity danger
+  dangerWarningTimer = 0; maxProximity = 0;
 
   getTrailLen(): number { return this.trailLen === 'short' ? 40 : this.trailLen === 'medium' ? 80 : 120; }
   getPlayerTitle(): string {
@@ -1052,6 +1134,21 @@ function simulateTrajectory(startPos: Vector3, startVel: Vector3, wells: Gravity
 }
 
 
+// R3: Create gravity interaction lines (show pull direction from probes to wells)
+function createGravInteractionLines(scene: Object3D, count: number): GravInteractionLine[] {
+  const lines: GravInteractionLine[] = [];
+  for (let i = 0; i < count; i++) {
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(6), 3));
+    const line = new Line(geo, new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: AdditiveBlending }));
+    line.frustumCulled = false;
+    scene.add(line);
+    lines.push({ line, active: false });
+  }
+  return lines;
+}
+
+
 // ---- Orbit Physics System ----
 class OrbitPhysicsSystem extends createSystem({}) {
   private game!: GameManager; private audio!: AudioManager; private particles!: ParticlePool;
@@ -1060,6 +1157,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
   private probes: Probe[] = []; private wells: GravityWell[] = [];
   private targets: Target[] = []; private powerUps: PowerUp[] = []; private wormholes: WormholePortal[] = [];
   private energyBeams: EnergyBeam[] = [];
+  private gravLines: GravInteractionLine[] = [];
   private dustUpdate: ((delta: number) => void) | null = null;
   private accel = new Vector3();
   private starTwinkle: ((time: number) => void) | null = null;
@@ -1079,7 +1177,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     shootingStars: ShootingStarManager; scorePopups: ScorePopupPool;
     probes: Probe[]; wells: GravityWell[]; targets: Target[];
     powerUps: PowerUp[]; wormholes: WormholePortal[];
-    energyBeams: EnergyBeam[];
+    energyBeams: EnergyBeam[]; gravLines?: GravInteractionLine[];
     dustUpdate?: (delta: number) => void;
     starTwinkle?: (time: number) => void;
     ambient?: AmbientLight; fog?: Fog;
@@ -1090,6 +1188,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     this.probes = refs.probes; this.wells = refs.wells;
     this.targets = refs.targets; this.powerUps = refs.powerUps; this.wormholes = refs.wormholes;
     this.energyBeams = refs.energyBeams;
+    if (refs.gravLines) this.gravLines = refs.gravLines;
     if (refs.dustUpdate) this.dustUpdate = refs.dustUpdate;
     if (refs.starTwinkle) this.starTwinkle = refs.starTwinkle;
     if (refs.ambient) { this.ambient = refs.ambient; this.savedAmbientColor.copy(refs.ambient.color); }
@@ -1310,6 +1409,97 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (pr.closestApproach < 0.2) { const a = this.game.achievements.find(a => a.id === 'graze-02'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
       if (pr.orbitCount >= 10) { const a = this.game.achievements.find(a => a.id === 'orbit-10'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
       if (pr.targetsHitThisProbe >= 3) { const a = this.game.achievements.find(a => a.id === 'efficient-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
+
+      // R3: Proximity danger tracking
+      for (const w of this.wells) {
+        const dist = pr.position.distanceTo(w.position);
+        const dangerZone = w.radius * DANGER_ZONE_MULT;
+        if (dist < dangerZone && dist > w.radius) {
+          const proximity = 1 - (dist - w.radius) / (dangerZone - w.radius);
+          if (proximity > this.game.maxProximity) this.game.maxProximity = proximity;
+        }
+      }
+    }
+
+    // R3: Proximity danger warning system
+    {
+      const aliveProbes = this.probes.filter(p => p.alive);
+      this.game.maxProximity = 0;
+      for (const pr of aliveProbes) {
+        for (const w of this.wells) {
+          const dist = pr.position.distanceTo(w.position);
+          const dangerZone = w.radius * DANGER_ZONE_MULT;
+          if (dist < dangerZone && dist > w.radius) {
+            const proximity = 1 - (dist - w.radius) / (dangerZone - w.radius);
+            if (proximity > this.game.maxProximity) this.game.maxProximity = proximity;
+            // Flash the well's glow
+            const flashIntensity = 0.15 + Math.sin(this.globalTime * DANGER_FLASH_SPEED) * 0.2 * proximity;
+            (w.glowMesh.material as MeshBasicMaterial).opacity = flashIntensity;
+            if (proximity > 0.7) {
+              const dangerColor = new Color(w.color).lerp(new Color(0xff0000), proximity * 0.5);
+              (w.glowMesh.material as MeshBasicMaterial).color.copy(dangerColor);
+            }
+          }
+        }
+      }
+      // Warning beep
+      this.game.dangerWarningTimer -= dt;
+      if (this.game.maxProximity > 0.5 && this.game.dangerWarningTimer <= 0) {
+        this.audio.playDangerWarning(this.game.maxProximity);
+        this.game.dangerWarningTimer = DANGER_WARNING_INTERVAL * (1 - this.game.maxProximity * 0.6);
+      }
+    }
+
+    // R3: Update gravity interaction lines
+    {
+      // Reset all
+      for (const gl of this.gravLines) {
+        gl.active = false;
+        (gl.line.material as LineBasicMaterial).opacity = 0;
+      }
+      // Find the most recent alive probe
+      const aliveProbes = this.probes.filter(p => p.alive);
+      if (aliveProbes.length > 0) {
+        const pr = aliveProbes[aliveProbes.length - 1];
+        // Sort wells by distance from probe
+        const sortedWells = this.wells
+          .map((w, i) => ({ well: w, idx: i, dist: pr.position.distanceTo(w.position) }))
+          .filter(w => w.dist < GRAV_LINE_MAX_DIST)
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, GRAV_LINE_COUNT);
+
+        for (let i = 0; i < sortedWells.length && i < this.gravLines.length; i++) {
+          const gl = this.gravLines[i];
+          const sw = sortedWells[i];
+          gl.active = true;
+          const pa = gl.line.geometry.attributes.position.array as Float32Array;
+          pa[0] = pr.position.x; pa[1] = pr.position.y; pa[2] = pr.position.z;
+          pa[3] = sw.well.position.x; pa[4] = sw.well.position.y; pa[5] = sw.well.position.z;
+          gl.line.geometry.attributes.position.needsUpdate = true;
+          const strength = 1 - sw.dist / GRAV_LINE_MAX_DIST;
+          (gl.line.material as LineBasicMaterial).opacity = strength * 0.15;
+          (gl.line.material as LineBasicMaterial).color.set(sw.well.color);
+        }
+      }
+    }
+
+    // R3: Level celebration animation
+    if (this.game.celebration.active) {
+      this.game.celebration.timer -= dt;
+      if (this.game.celebration.timer <= 0) {
+        this.game.celebration.active = false;
+      } else {
+        // Continuous particle shower during celebration
+        const intensity = this.game.celebration.timer / CELEBRATION_DURATION;
+        if (Math.random() < intensity * 0.5) {
+          const angle = Math.random() * Math.PI * 2;
+          const r = 2 + Math.random() * 5;
+          const pos = new Vector3(Math.cos(angle) * r, 3 + Math.random() * 2, Math.sin(angle) * r - 5);
+          const celebColors = [0x00ff88, 0xffaa00, 0xff44ff, 0x44aaff, 0xffffff];
+          const color = new Color(celebColors[Math.floor(Math.random() * celebColors.length)]);
+          this.particles.emit(pos, color, 3, 1.5, 1.5);
+        }
+      }
     }
 
     // R2: Update camera follow target
@@ -1421,6 +1611,24 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (stars === 3) this.game.tripleStarCount++;
       if (this.game.probesUsed > 0 && this.game.targetsCollected === this.game.probesUsed) this.game.perfectLevels++;
       this.game.addXP(50 + stars * 25 + Math.floor(this.game.score / 10)); this.audio.playSuccess(); this.game.state = 'level-complete';
+      // R3: Trigger celebration
+      this.game.celebration = { active: true, timer: CELEBRATION_DURATION, threeStars: stars === 3 };
+      this.audio.playCelebration(stars === 3);
+      // Big particle burst at center
+      const center = new Vector3(0, 1.5, -4);
+      this.particles.emitRing(center, new Color(stars === 3 ? 0xffaa00 : 0x00ff88), 40, 2, 1.5);
+      if (stars === 3) {
+        // Extra gold burst for perfect rating
+        for (let i = 0; i < 5; i++) {
+          const p = center.clone().add(new Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3));
+          this.particles.emit(p, new Color(0xffaa00), 15, 3, 1.2);
+        }
+      }
+      // R3: Survival wave advancement
+      if (this.game.mode === 'survival') {
+        this.game.survivalWave++;
+        this.game.survivalWaveBannerTimer = 2.5;
+      }
     } else { this.audio.playFail(); this.game.state = 'game-over'; }
     this.game.gamesPlayed++; this.game.modesPlayed.add(this.game.mode); this.game.checkAchievements();
     // R2: Camera follow off when level ends
@@ -1579,6 +1787,8 @@ class GameUISystem extends createSystem({
   dailyChallenge: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/daily-challenge.json')] },
   powerUpHud: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/power-up-hud.json')] },
   levelSelect: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/level-select.json')] },
+  tutorialHint: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/tutorial-hint.json')] },
+  waveBanner: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/wave-banner.json')] },
 }) {
   private game!: GameManager; private audio!: AudioManager;
   private highScores!: HighScoreManager;
@@ -1591,6 +1801,9 @@ class GameUISystem extends createSystem({
   private achPageSize = 10;
   // R2: Level select pagination
   private lvlPage = 0;
+  // R3: Tutorial timer
+  private tutorialTimer = 0;
+  private tutorialAutoAdvance = 8; // seconds between auto-advancing hints
 
   setRefs(refs: { game: GameManager; audio: AudioManager; highScores: HighScoreManager; onStart: (m: GameMode, l: number) => void; onTheme: (t: ThemeName) => void }) {
     this.game = refs.game; this.audio = refs.audio; this.highScores = refs.highScores;
@@ -1663,7 +1876,14 @@ class GameUISystem extends createSystem({
     this.queries.powerGauge.subscribe('qualify', (e) => { this.pe['powerGauge'] = e; });
     this.queries.hud.subscribe('qualify', (e) => { this.pe['hud'] = e; });
     this.queries.levelComplete.subscribe('qualify', (e) => { this.pe['levelComplete'] = e; this.btn(e, 'btn-next-lvl', () => { this.game.level++; this.onStart(this.game.mode, this.game.level); }); this.btn(e, 'btn-replay', () => this.onStart(this.game.mode, this.game.level)); });
-    this.queries.dailyChallenge.subscribe('qualify', (e) => { this.pe['dailyChallenge'] = e; this.btn(e, 'btn-start-daily', () => { this.game.mode = 'daily'; this.game.level = 1; this.onStart('daily', 1); }); this.btn(e, 'btn-back', () => this.showP('modeSelect')); });
+    this.queries.dailyChallenge.subscribe('qualify', (e) => {
+      this.pe['dailyChallenge'] = e;
+      this.btn(e, 'btn-start-daily', () => { this.game.mode = 'daily'; this.game.level = 1; this.onStart('daily', 1); });
+      this.btn(e, 'btn-back', () => this.showP('modeSelect'));
+      // R3: Show daily challenge info
+      this.st(e, 'streak', `${this.game.dailyStreak} days`);
+      this.st(e, 'best-score', this.game.lastDailyDate ? `${this.highScores.get('daily', 1)?.score ?? '---'}` : '---');
+    });
     this.queries.powerUpHud.subscribe('qualify', (e) => { this.pe['powerUpHud'] = e; });
     // R2: Level select
     this.queries.levelSelect.subscribe('qualify', (e) => {
@@ -1678,6 +1898,17 @@ class GameUISystem extends createSystem({
       this.btn(e, 'btn-prev-page', () => { if (this.lvlPage > 0) { this.lvlPage--; this.refreshLvlSelect(); } });
       this.btn(e, 'btn-next-page', () => { this.lvlPage++; this.refreshLvlSelect(); });
       this.btn(e, 'btn-back', () => this.showP('modeSelect'));
+    });
+    // R3: Tutorial hint panel
+    this.queries.tutorialHint.subscribe('qualify', (e) => {
+      this.pe['tutorialHint'] = e;
+      this.btn(e, 'hint-dismiss', () => {
+        this.advanceTutorial();
+      });
+    });
+    // R3: Wave banner panel
+    this.queries.waveBanner.subscribe('qualify', (e) => {
+      this.pe['waveBanner'] = e;
     });
   }
 
@@ -1823,6 +2054,57 @@ class GameUISystem extends createSystem({
         }
       }
     }
+    // R3: Tutorial hint auto-advance
+    if (isP && !this.game.tutorialComplete) {
+      this.tutorialTimer += delta;
+      if (this.tutorialTimer >= this.tutorialAutoAdvance) {
+        this.advanceTutorial();
+      }
+      // Show first hint when game starts
+      const e = this.pe['tutorialHint'];
+      if (e?.object3D && !e.object3D.visible && this.game.tutorialHintsShown < TUTORIAL_HINTS.length) {
+        this.showTutorialHint();
+      }
+    } else {
+      const e = this.pe['tutorialHint'];
+      if (e?.object3D) e.object3D.visible = false;
+    }
+
+    // R3: Survival wave banner
+    if (this.game.survivalWaveBannerTimer > 0) {
+      this.game.survivalWaveBannerTimer -= delta;
+      const wb = this.pe['waveBanner'];
+      if (wb) {
+        if (wb.object3D) wb.object3D.visible = this.game.survivalWaveBannerTimer > 0;
+        this.st(wb, 'wave-label', `WAVE ${this.game.survivalWave}`);
+        const waveDescs = ['Survive the gravity fields!', 'Intensity rising...', 'Chaos approaches!', 'The void deepens...', 'Master the orbits!'];
+        this.st(wb, 'wave-desc', waveDescs[Math.min(this.game.survivalWave - 1, waveDescs.length - 1)]);
+      }
+    } else {
+      const wb = this.pe['waveBanner'];
+      if (wb?.object3D) wb.object3D.visible = false;
+    }
+
+    // R3: Danger proximity HUD indicator
+    if (isP && this.game.maxProximity > 0.3) {
+      const h = this.pe['hud'];
+      if (h) {
+        const dangerPct = Math.round(this.game.maxProximity * 100);
+        this.st(h, 'mode', `DANGER ${dangerPct}%`);
+        const modeEl = this.doc(h)?.getElementById('mode') as UIKit.Text | undefined;
+        if (modeEl) {
+          const flash = Math.sin(Date.now() * 0.01) > 0;
+          modeEl.setProperties({ color: this.game.maxProximity > 0.7 ? (flash ? '#ff0000' : '#ff4444') : '#ffaa00' });
+        }
+      }
+    } else if (isP) {
+      const h = this.pe['hud'];
+      if (h) {
+        const modeEl = this.doc(h)?.getElementById('mode') as UIKit.Text | undefined;
+        if (modeEl && !this.game.slingshotNotif) modeEl.setProperties({ color: '#aabbcc' });
+      }
+    }
+
     // Achievement notifications
     if (this.game.pendingAchievements.length > 0 && !this.notifActive) {
       const a = this.game.pendingAchievements.shift()!; const ne = this.pe['notification'];
@@ -1841,6 +2123,35 @@ class GameUISystem extends createSystem({
     this.st(e, 'play-time', `${Math.round(this.game.totalPlayTime / 60)}m`);
     this.st(e, 'player-level', `Lv. ${this.game.playerLevel}`); this.st(e, 'player-title', this.game.getPlayerTitle());
     this.st(e, 'xp-text', `${this.game.xp} / ${this.game.xpToNext} XP`);
+  }
+
+  // R3: Tutorial management
+  private showTutorialHint() {
+    if (this.game.tutorialComplete || this.game.tutorialHintsShown >= TUTORIAL_HINTS.length) {
+      this.game.tutorialComplete = true;
+      const e = this.pe['tutorialHint'];
+      if (e?.object3D) e.object3D.visible = false;
+      return;
+    }
+    const e = this.pe['tutorialHint'];
+    if (e) {
+      this.st(e, 'hint-text', TUTORIAL_HINTS[this.game.tutorialHintsShown]);
+      this.st(e, 'hint-icon', `TIP ${this.game.tutorialHintsShown + 1}/${TUTORIAL_HINTS.length}`);
+      if (e.object3D) e.object3D.visible = true;
+    }
+    this.tutorialTimer = 0;
+  }
+
+  private advanceTutorial() {
+    this.game.tutorialHintsShown++;
+    if (this.game.tutorialHintsShown >= TUTORIAL_HINTS.length) {
+      this.game.tutorialComplete = true;
+      const e = this.pe['tutorialHint'];
+      if (e?.object3D) e.object3D.visible = false;
+      GameSaveManager.save(this.game);
+    } else {
+      this.showTutorialHint();
+    }
   }
 
   private refreshAch() {
@@ -1927,6 +2238,8 @@ async function main() {
   let powerUps: PowerUp[] = [];
   let wormholes: WormholePortal[] = [];
   let energyBeams: EnergyBeam[] = [];
+  // R3: Gravity interaction lines
+  const gravLines = createGravInteractionLines(world.scene, GRAV_LINE_COUNT);
   const probes: Probe[] = [];
   for (let i = 0; i < MAX_PROBES; i++) probes.push(createProbe(world.scene));
   const predLine = createPredictionLine(world.scene);
@@ -1959,6 +2272,11 @@ async function main() {
     game.cameraFollow = false; game.cameraFollowTarget = null;
     game.newHighScore = false;
     game.slingshotNotif = false; game.slingshotNotifTimer = 0;
+    // R3: Reset survival wave and danger state
+    if (mode === 'survival' && levelNum === 1) game.survivalWave = 1;
+    game.survivalWaveBannerTimer = mode === 'survival' ? 2.5 : 0;
+    game.dangerWarningTimer = 0; game.maxProximity = 0;
+    game.celebration = { active: false, timer: 0, threeStars: false };
 
     wells = lvl.wells.map(cfg => createGravityWell(world.scene, cfg));
     targets = lvl.targets.map(cfg => createTarget(world.scene, cfg));
@@ -1969,7 +2287,7 @@ async function main() {
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
     audio.startDrone();
@@ -2017,6 +2335,8 @@ async function main() {
     shootingStars.setThemeColor(currentTheme.nebula);
     for (const cloud of nebulaClouds) world.scene.remove(cloud);
     nebulaClouds = createNebulaClouds(world.scene, currentTheme.nebula);
+    // R3: Theme-reactive audio
+    audio.setThemeTuning(t);
   }
 
   // ---- Create Panel UI entities ----
@@ -2041,6 +2361,10 @@ async function main() {
     { name: 'powerUpHud', config: './ui/power-up-hud.json', maxW: 0.25, maxH: 0.05, follow: true, offset: [-0.3, 0.15, -0.6] },
     // R2: Level select panel
     { name: 'levelSelect', config: './ui/level-select.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
+    // R3: Tutorial hint panel
+    { name: 'tutorialHint', config: './ui/tutorial-hint.json', maxW: 0.4, maxH: 0.08, follow: true, offset: [0, -0.2, -0.7] },
+    // R3: Wave banner panel
+    { name: 'waveBanner', config: './ui/wave-banner.json', maxW: 0.4, maxH: 0.12, follow: true, offset: [0, 0.1, -0.8] },
   ];
 
   for (const pc of panelConfigs) {
@@ -2066,7 +2390,7 @@ async function main() {
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
   uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
 
