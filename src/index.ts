@@ -98,7 +98,13 @@ interface Probe {
   shielded: boolean; targetsHitThisProbe: number; slingshotNotified: boolean;
   shieldMesh: Mesh; glowLight: PointLight;
 }
-interface Target { group: Group; position: Vector3; collected: boolean; pulsePhase: number; points: number; }
+interface Target {
+  group: Group; position: Vector3; collected: boolean; pulsePhase: number; points: number;
+  motion: 'static' | 'orbit' | 'bounce';
+  basePos: Vector3;
+  orbitCenter: Vector3; orbitRadius: number; orbitSpeed: number; orbitAngle: number;
+  bounceAxis: Vector3; bounceAmplitude: number; bouncePhase: number;
+}
 interface PowerUp {
   group: Group; position: Vector3; type: PowerUpType; collected: boolean; pulsePhase: number;
   innerMesh: Mesh; outerMesh: Mesh;
@@ -109,7 +115,7 @@ interface WormholePortal {
 }
 interface LevelConfig {
   wells: { x: number; y: number; z: number; mass: number; radius: number; color: number; motion: WellMotion; orbitRadius?: number; orbitSpeed?: number; oscillateAmp?: number }[];
-  targets: { x: number; y: number; z: number; points: number }[];
+  targets: { x: number; y: number; z: number; points: number; motion?: 'static' | 'orbit' | 'bounce'; orbitWellIdx?: number }[];
   powerUps: { x: number; y: number; z: number; type: PowerUpType }[];
   wormholes: { ax: number; ay: number; az: number; bx: number; by: number; bz: number }[];
   asteroids: { x: number; y: number; z: number; radius: number }[];
@@ -770,7 +776,10 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     let x: number, y: number, z: number, at = 0;
     do { const a = rng() * Math.PI * 2; const d = 2 + rng() * fieldSize; x = Math.cos(a) * d; y = (rng() - 0.5) * 4; z = -3 - Math.sin(a) * d; at++; }
     while (at < 20 && wells.some(w => Math.sqrt((x - w.x) ** 2 + (y - w.y) ** 2 + (z - w.z) ** 2) < w.radius + 0.5));
-    targets.push({ x, y, z, points: 100 + Math.floor(rng() * 5) * 50 });
+    targets.push({ x, y, z, points: 100 + Math.floor(rng() * 5) * 50,
+      motion: (levelNum >= 4 && rng() < 0.2 + levelNum * 0.03) ? (rng() < 0.5 ? 'orbit' : 'bounce') : 'static',
+      orbitWellIdx: wells.length > 0 ? Math.floor(rng() * wells.length) : 0,
+    });
   }
 
   const powerUps: LevelConfig['powerUps'] = [];
@@ -890,6 +899,10 @@ class GameManager {
     { id: 'graze-master', name: 'Graze Master', desc: 'Get 20 graze bonuses', unlocked: false },
     { id: 'orbit-score', name: 'Orbital Scorer', desc: 'Score 5 orbit bonuses', unlocked: false },
     { id: 'close-shave', name: 'Close Shave', desc: 'Graze 3 wells in a single probe', unlocked: false },
+    { id: 'survive-30', name: 'Unbreakable', desc: 'Reach wave 30 in Survival', unlocked: false },
+    { id: 'moving-target', name: 'Moving Target', desc: 'Collect a moving target', unlocked: false },
+    { id: 'wave-5-no-miss', name: 'Flawless Run', desc: '5 survival waves with no miss', unlocked: false },
+    { id: 'combo-15', name: 'Unstoppable', desc: 'Reach x15 combo', unlocked: false },
   ];
   modesPlayed = new Set<GameMode>(); slowMoCount = 0; tripleStarCount = 0; levelsCompleted = 0;
   pendingAchievements: Achievement[] = [];
@@ -970,6 +983,8 @@ class GameManager {
     ck('magnet-3', this.magnetCollects >= 3); ck('freeze-collect', this.freezeCollects >= 3);
     ck('asteroid-dodge-10', this.asteroidsDodged >= 10); ck('asteroid-dodge-50', this.asteroidsDodged >= 50);
     ck('graze-master', this.grazeCount >= 20); ck('orbit-score', this.orbitBonusCount >= 5);
+    ck('survive-30', this.mode === 'survival' && this.survivalWave >= 30);
+    ck('combo-15', this.bestCombo >= 15);
   }
 }
 
@@ -1115,6 +1130,29 @@ function createGravityWell(scene: Object3D, cfg: LevelConfig['wells'][0]): Gravi
     group.add(line); fieldLines.push(line);
   }
   group.add(new PointLight(cfg.color, 0.5, cfg.radius * 8));
+  // R3: Accretion disk — spinning particles around massive wells
+  if (cfg.mass >= 2) {
+    const diskCount = Math.floor(cfg.mass * 30);
+    const diskPos = new Float32Array(diskCount * 3);
+    const diskCol = new Float32Array(diskCount * 3);
+    const wellColor = new Color(cfg.color);
+    for (let d = 0; d < diskCount; d++) {
+      const angle = (d / diskCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const diskR = cfg.radius * (1.8 + Math.random() * 2.5);
+      diskPos[d * 3] = Math.cos(angle) * diskR;
+      diskPos[d * 3 + 1] = (Math.random() - 0.5) * 0.15;
+      diskPos[d * 3 + 2] = Math.sin(angle) * diskR;
+      const b = 0.4 + Math.random() * 0.6;
+      diskCol[d * 3] = wellColor.r * b;
+      diskCol[d * 3 + 1] = wellColor.g * b;
+      diskCol[d * 3 + 2] = wellColor.b * b;
+    }
+    const diskGeo = new BufferGeometry();
+    diskGeo.setAttribute('position', new Float32BufferAttribute(diskPos, 3));
+    diskGeo.setAttribute('color', new Float32BufferAttribute(diskCol, 3));
+    const diskPts = new Points(diskGeo, new PointsMaterial({ size: 0.04, vertexColors: true, transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
+    group.add(diskPts);
+  }
   scene.add(group);
   const pos = new Vector3(cfg.x, cfg.y, cfg.z);
   return {
@@ -1126,13 +1164,36 @@ function createGravityWell(scene: Object3D, cfg: LevelConfig['wells'][0]): Gravi
   };
 }
 
-function createTarget(scene: Object3D, cfg: LevelConfig['targets'][0]): Target {
+function createTarget(scene: Object3D, cfg: LevelConfig['targets'][0], wells: LevelConfig['wells'][]): Target {
   const group = new Group(); group.position.set(cfg.x, cfg.y, cfg.z);
   group.add(new Mesh(new OctahedronGeometry(TARGET_RADIUS, 0), new MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.8 })));
   group.add(new Mesh(new OctahedronGeometry(TARGET_RADIUS * 1.2, 0), new MeshBasicMaterial({ color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.4 })));
   group.add(new Mesh(new SphereGeometry(TARGET_RADIUS * 2, 12, 12), new MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: AdditiveBlending, depthWrite: false })));
+  // Motion visual cue — moving targets have a faint ring
+  const motion = cfg.motion || 'static';
+  if (motion !== 'static') {
+    const motionRing = new Mesh(new TorusGeometry(TARGET_RADIUS * 2.5, 0.01, 8, 24),
+      new MeshBasicMaterial({ color: motion === 'orbit' ? 0x44aaff : 0xffaa44, transparent: true, opacity: 0.25, blending: AdditiveBlending }));
+    motionRing.rotation.x = Math.PI * 0.5; group.add(motionRing);
+  }
   scene.add(group);
-  return { group, position: new Vector3(cfg.x, cfg.y, cfg.z), collected: false, pulsePhase: Math.random() * Math.PI * 2, points: cfg.points };
+  const basePos = new Vector3(cfg.x, cfg.y, cfg.z);
+  // Orbit center: use nearest well position if orbiting
+  let orbitCenter = basePos.clone();
+  let orbitRadius = 2;
+  if (motion === 'orbit' && cfg.orbitWellIdx !== undefined && cfg.orbitWellIdx < (wells as any).length) {
+    const w = (wells as any)[cfg.orbitWellIdx];
+    if (w) { orbitCenter = new Vector3(w.x, w.y, w.z); orbitRadius = basePos.distanceTo(orbitCenter); }
+  }
+  return {
+    group, position: new Vector3(cfg.x, cfg.y, cfg.z), collected: false,
+    pulsePhase: Math.random() * Math.PI * 2, points: cfg.points,
+    motion, basePos,
+    orbitCenter, orbitRadius, orbitSpeed: 0.4 + Math.random() * 0.4,
+    orbitAngle: Math.random() * Math.PI * 2,
+    bounceAxis: new Vector3(0, 1, 0), bounceAmplitude: 1 + Math.random() * 1.5,
+    bouncePhase: Math.random() * Math.PI * 2,
+  };
 }
 
 function createPowerUp(scene: Object3D, cfg: LevelConfig['powerUps'][0]): PowerUp {
@@ -1209,9 +1270,43 @@ function createProbe(scene: Object3D): Probe {
 }
 
 function createPredictionLine(scene: Object3D): Line {
-  const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(PREDICTION_STEPS * 3), 3));
-  const line = new Line(geo, new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(PREDICTION_STEPS * 3), 3));
+  geo.setAttribute('color', new Float32BufferAttribute(new Float32Array(PREDICTION_STEPS * 3), 3));
+  const line = new Line(geo, new LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4 }));
   line.visible = false; line.frustumCulled = false; scene.add(line); return line;
+}
+
+// R3: Color trajectory based on proximity to danger zones
+function colorTrajectory(positions: Float32Array, colors: Float32Array, steps: number, wells: GravityWell[]) {
+  const safeColor = new Color(0x44ff88);
+  const warnColor = new Color(0xffaa00);
+  const dangerColor = new Color(0xff2222);
+  const tmpPos = new Vector3();
+  const tmpColor = new Color();
+  for (let i = 0; i < steps; i++) {
+    tmpPos.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+    let minDist = Infinity;
+    let nearRadius = 1;
+    for (const w of wells) {
+      const d = tmpPos.distanceTo(w.position);
+      const norm = d / (w.radius * 4); // normalize by danger zone
+      if (norm < minDist) { minDist = norm; nearRadius = w.radius; }
+    }
+    if (minDist < 1.0) {
+      tmpColor.lerpColors(dangerColor, warnColor, Math.max(0, minDist));
+    } else if (minDist < 2.5) {
+      const t = (minDist - 1.0) / 1.5;
+      tmpColor.lerpColors(warnColor, safeColor, t);
+    } else {
+      tmpColor.copy(safeColor);
+    }
+    // Fade out along length
+    const fade = 1 - (i / steps) * 0.6;
+    colors[i * 3] = tmpColor.r * fade;
+    colors[i * 3 + 1] = tmpColor.g * fade;
+    colors[i * 3 + 2] = tmpColor.b * fade;
+  }
 }
 
 function createLaunchIndicator(scene: Object3D): Group {
@@ -1279,6 +1374,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
   private accel = new Vector3();
   private starTwinkle: ((time: number) => void) | null = null;
   private globalTime = 0;
+  private onSurvivalWave: (() => void) | null = null;
   // R2: Time freeze visual refs
   private ambient: AmbientLight | null = null;
   private fog: Fog | null = null;
@@ -1298,6 +1394,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     dustUpdate?: (delta: number) => void;
     starTwinkle?: (time: number) => void;
     ambient?: AmbientLight; fog?: Fog;
+    onSurvivalWave?: () => void;
   }) {
     this.game = refs.game; this.audio = refs.audio; this.particles = refs.particles;
     this.shake = refs.shake; this.shootingStars = refs.shootingStars;
@@ -1311,6 +1408,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (refs.starTwinkle) this.starTwinkle = refs.starTwinkle;
     if (refs.ambient) { this.ambient = refs.ambient; this.savedAmbientColor.copy(refs.ambient.color); }
     if (refs.fog) { this.fog = refs.fog; this.savedFogColor.copy(refs.fog.color); }
+    if (refs.onSurvivalWave) this.onSurvivalWave = refs.onSurvivalWave;
   }
 
   update(delta: number, _time: number) {
@@ -1330,6 +1428,14 @@ class OrbitPhysicsSystem extends createSystem({}) {
       const alive = this.probes.filter(p => p.alive).length;
       const intensity = alive >= 3 ? 3 : alive >= 1 ? 2 : 1;
       this.audio.setIntensity(intensity);
+      // R3: Combo visual escalation — scene reacts to combo level
+      if (this.game.combo >= 3 && this.ambient) {
+        const comboIntensity = Math.min((this.game.combo - 2) * 0.08, 0.5);
+        const pulse = Math.sin(this.globalTime * 4) * comboIntensity * 0.3;
+        this.ambient.intensity = 0.6 + comboIntensity + pulse;
+      } else if (this.ambient) {
+        this.ambient.intensity += (0.6 - this.ambient.intensity) * delta * 3;
+      }
     } else if (this.game.state === 'menu') {
       this.audio.setIntensity(0);
     }
@@ -1700,7 +1806,22 @@ class OrbitPhysicsSystem extends createSystem({}) {
       w.fieldLines.forEach((l, i) => { l.rotation.y += dt * (0.1 + i * 0.05); l.visible = this.game.showGravityLines; });
     }
     // Animate targets
-    for (const t of this.targets) { if (t.collected) continue; t.pulsePhase += dt * 3; t.group.rotation.y += dt; t.group.rotation.x += dt * 0.5; t.group.scale.setScalar(1 + Math.sin(t.pulsePhase) * 0.15); }
+    for (const t of this.targets) {
+      if (t.collected) continue;
+      t.pulsePhase += dt * 3; t.group.rotation.y += dt; t.group.rotation.x += dt * 0.5; t.group.scale.setScalar(1 + Math.sin(t.pulsePhase) * 0.15);
+      // R3: Moving target animation
+      if (t.motion === 'orbit') {
+        t.orbitAngle += t.orbitSpeed * dt;
+        t.position.x = t.orbitCenter.x + Math.cos(t.orbitAngle) * t.orbitRadius;
+        t.position.z = t.orbitCenter.z + Math.sin(t.orbitAngle) * t.orbitRadius;
+        t.group.position.copy(t.position);
+      } else if (t.motion === 'bounce') {
+        t.bouncePhase += dt * 1.8;
+        const off = Math.sin(t.bouncePhase) * t.bounceAmplitude;
+        t.position.y = t.basePos.y + off;
+        t.group.position.copy(t.position);
+      }
+    }
     // Animate power-ups
     for (const pu of this.powerUps) {
       if (pu.collected) continue;
@@ -1726,13 +1847,32 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (this.game.mode !== 'zen') {
       const allDone = this.targets.length > 0 && this.targets.every(t => t.collected);
       const noProbes = this.game.probesRemaining <= 0 && !this.probes.some(p => p.alive);
-      if (allDone || noProbes) this.endLevel();
+      // R3: Survival wave spawning — when all targets collected, spawn next wave
+      if (this.game.mode === 'survival' && allDone && !noProbes) {
+        this.game.survivalWave++;
+        this.game.level = this.game.survivalWave;
+        this.game.survivalWaveBannerTimer = 2.5;
+        this.game.survivalTargetsThisWave = 0;
+        // Grant bonus probes per wave
+        this.game.probesRemaining += Math.max(2, 5 - Math.floor(this.game.survivalWave / 3));
+        this.audio.playWaveStart();
+        // R3: Celebration before next wave
+        this.game.celebration = { active: true, timer: 1.5, threeStars: false };
+        this.particles.emitRing(new Vector3(0, 1.5, -4), new Color(0x00ff88), 24, 2, 1.0);
+        this.game.addXP(25 + this.game.survivalWave * 10);
+        if (this.onSurvivalWave) this.onSurvivalWave();
+      } else if (allDone || noProbes) { this.endLevel(); }
     }
   }
 
   private collectTarget(tgt: Target, pr: Probe) {
     tgt.collected = true; tgt.group.visible = false; this.game.targetsCollected++; this.game.totalTargetsCollected++;
     pr.targetsHitThisProbe++;
+    // R3: Moving target achievement
+    if (tgt.motion !== 'static') {
+      const a = this.game.achievements.find(a => a.id === 'moving-target');
+      if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); }
+    }
     const now = this.game.elapsedTime;
     if (now - this.game.lastCollectTime < COMBO_WINDOW) this.game.combo++; else this.game.combo = 1;
     this.game.lastCollectTime = now;
@@ -1914,6 +2054,10 @@ class InputControlSystem extends createSystem({}) {
       const vel = this.launchDir.clone().multiplyScalar(speed);
       const pa = this.predLine.geometry.attributes.position.array as Float32Array;
       const steps = simulateTrajectory(this.aimOrigin, vel, this.wells, PREDICTION_STEPS, PREDICTION_DT, pa);
+      // R3: Danger-colored trajectory
+      const ca = this.predLine.geometry.attributes.color.array as Float32Array;
+      colorTrajectory(pa, ca, steps, this.wells);
+      this.predLine.geometry.attributes.color.needsUpdate = true;
       this.predLine.geometry.setDrawRange(0, steps); this.predLine.geometry.attributes.position.needsUpdate = true; this.predLine.visible = true;
     } else { this.predLine.visible = false; }
     // Launch indicator
@@ -2178,6 +2322,10 @@ class GameUISystem extends createSystem({
           // R2: Camera follow indicator
           if (this.game.cameraFollow) {
             this.st(h, 'mode', `${mn[this.game.mode]} [CAM]`);
+          }
+          // R3: Survival wave in HUD
+          if (this.game.mode === 'survival') {
+            this.st(h, 'level', `Wave ${this.game.survivalWave}`);
           }
         }
         // Power-up HUD
@@ -2470,7 +2618,7 @@ async function main() {
     game.grazeCooldowns.clear();
 
     wells = lvl.wells.map(cfg => createGravityWell(world.scene, cfg));
-    targets = lvl.targets.map(cfg => createTarget(world.scene, cfg));
+    targets = lvl.targets.map(cfg => createTarget(world.scene, cfg, lvl.wells as any));
     powerUps = lvl.powerUps.map(cfg => createPowerUp(world.scene, cfg));
     wormholes = lvl.wormholes.map(cfg => createWormhole(world.scene, cfg));
     // R3: Create asteroids
@@ -2480,10 +2628,40 @@ async function main() {
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
     audio.startDrone();
+  }
+
+  // R3: Survival wave spawning — generate new targets for the next wave
+  function handleSurvivalWave() {
+    // Remove old collected target groups
+    for (const t of targets) { if (t.collected) world.scene.remove(t.group); }
+    // Generate new wave level config
+    const waveLvl = generateLevel(game.survivalWave, 'survival');
+    // Create new targets
+    const newTargets = waveLvl.targets.map(cfg => createTarget(world.scene, cfg, waveLvl.wells as any));
+    targets.length = 0; targets.push(...newTargets);
+    game.targets = targets;
+    game.targetsCollected = 0; game.targetsTotal = newTargets.length;
+    game.combo = 0; game.grazeCooldowns.clear();
+    // Spawn additional power-ups for later waves
+    if (game.survivalWave >= 3 && waveLvl.powerUps.length > 0) {
+      for (const cfg of waveLvl.powerUps) {
+        const pu = createPowerUp(world.scene, cfg);
+        powerUps.push(pu); game.powerUps = powerUps;
+      }
+    }
+    // Spawn additional asteroids for later waves
+    if (game.survivalWave >= 2 && waveLvl.asteroids.length > 0) {
+      for (const cfg of waveLvl.asteroids) {
+        const ast = createAsteroid(world.scene, cfg);
+        asteroids.push(ast);
+      }
+    }
+    // Update physics system refs with new targets/obstacles
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
   }
 
   // Multi-shot handler
@@ -2583,7 +2761,7 @@ async function main() {
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
   uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
 
