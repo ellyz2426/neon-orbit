@@ -11,5 +11,6 @@
     <text name="btn-how" fontSize="22" color="#ffffff" backgroundColor="#222233" padding="12" borderRadius="10" width="280" textAlign="center" borderWidth="1" borderColor="#4444aa" cursor="pointer">HOW TO PLAY</text>
   </container>
 
-  <text name="version" fontSize="12" color="#444466" marginTop="20">v1.0 - VR + Browser</text>
+  <text name="version" fontSize="12" color="#444466" marginTop="10">v2.0 - VR + Browser</text>
+  <text name="player-info" fontSize="14" color="#00ffff" marginTop="5">Lv.1 Cadet</text>
 </container>

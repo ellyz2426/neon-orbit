@@ -7,8 +7,8 @@
   "pages_url": "https://ellyz2426.github.io/neon-orbit/",
   "build_start_utc": "2026-06-14T07:00:00Z",
   "target_hours": 6,
-  "total_build_minutes": 90,
-  "status": "building",
+  "total_build_minutes": 100,
+  "status": "waiting_continuation",
   "rounds": [
     {
       "round": 2,
@@ -40,6 +40,39 @@
         "Source pushed to main branch",
         "1,416 lines TypeScript (was 914)"
       ]
+    },
+    {
+      "round": 2,
+      "sentinel": "3am",
+      "started_utc": "2026-06-14T10:00:00Z",
+      "ended_utc": "2026-06-14T10:10:28Z",
+      "minutes": 25,
+      "features": [
+        "Shooting stars ambient effect - periodic bright streaks across the sky",
+        "Nebula cloud background - 6 semi-transparent spheres per theme with additive blending",
+        "Ambient dust particles - 200 slowly drifting particles in play area with wraparound",
+        "Energy beams between nearby gravity wells - pulsing connecting lines",
+        "Color-varied starfield - warm/cool tones, 1200 stars",
+        "HighScoreManager class with localStorage persistence per mode/level",
+        "Level select panel (level-select.uikitml) - 10 levels per page with star ratings",
+        "Level select pagination with Prev/Next and total stars display",
+        "Camera follow mode - F key / left thumbstick to track active probe",
+        "Smooth camera interpolation when following probes",
+        "Slingshot gravity assist detection with audio+visual feedback",
+        "Directional particle bursts for slingshot maneuvers",
+        "Enhanced combo particle effects - ring bursts at x3+",
+        "Achievement pagination - all 48 viewable, 10 per page with Prev/Next",
+        "New high score celebration sound effect",
+        "High score display on level-complete and game-over screens",
+        "Pad oscillator music layer for richer adaptive soundtrack",
+        "Slingshot audio SFX",
+        "StateWatcherSystem for automatic high score recording",
+        "Increased particle pool to 500",
+        "Theme-reactive nebula clouds that update on theme change",
+        "16 PanelUI panels (added level-select), 48 achievements",
+        "1885 lines TypeScript, zero type errors",
+        "Deployed to GitHub Pages"
+      ]
     }
   ],
   "features_completed": [
@@ -55,7 +88,21 @@
     "twinkling-starfield",
     "ring-particles",
     "48-achievements",
-    "power-up-hud-panel"
+    "power-up-hud-panel",
+    "shooting-stars",
+    "nebula-clouds",
+    "ambient-dust",
+    "energy-beams",
+    "high-score-persistence",
+    "level-select-panel",
+    "camera-follow-mode",
+    "slingshot-detection",
+    "achievement-pagination",
+    "high-score-sfx",
+    "color-varied-starfield",
+    "pad-music-layer",
+    "directional-particles",
+    "state-watcher-system"
   ],
-  "last_updated_utc": "2026-06-14T09:57:50Z"
+  "last_updated_utc": "2026-06-14T10:10:28Z"
 }

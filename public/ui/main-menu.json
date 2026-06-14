@@ -175,15 +175,29 @@
         "sourceTag": "text",
         "type": "custom",
         "children": [
-          "v1.0 - VR + Browser"
+          "v2.0 - VR + Browser"
         ],
         "properties": {
           "name": "version",
           "fontsize": "12",
           "color": "#444466",
-          "margintop": "20"
+          "margintop": "10"
         },
         "dataUid": "uid-11"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Lv.1 Cadet"
+        ],
+        "properties": {
+          "name": "player-info",
+          "fontsize": "14",
+          "color": "#00ffff",
+          "margintop": "5"
+        },
+        "dataUid": "uid-12"
       }
     ],
     "properties": {
@@ -208,7 +222,7 @@
         "column": 0
       },
       "end": {
-        "line": 14,
+        "line": 15,
         "column": 12
       }
     },
@@ -310,6 +324,16 @@
       "end": {
         "line": 13,
         "column": 94
+      }
+    },
+    "uid-12": {
+      "start": {
+        "line": 14,
+        "column": 2
+      },
+      "end": {
+        "line": 14,
+        "column": 88
       }
     }
   }

@@ -63,6 +63,7 @@ interface Probe {
   mesh: Mesh; trailLine: Line; trailPositions: Vector3[]; position: Vector3; velocity: Vector3;
   alive: boolean; age: number; orbitCount: number; lastWellIdx: number; closestApproach: number;
   shielded: boolean; targetsHitThisProbe: number; slingshotNotified: boolean;
+  shieldMesh: Mesh; glowLight: PointLight;
 }
 interface Target { group: Group; position: Vector3; collected: boolean; pulsePhase: number; points: number; }
 interface PowerUp {
@@ -171,6 +172,106 @@ class HighScoreManager {
       if (k.startsWith(mode + '-')) total += v.stars;
     }
     return total;
+  }
+}
+
+// ---- R2: Full Game Save Manager ----
+class GameSaveManager {
+  private static KEY = 'neon-orbit-save';
+
+  static save(game: GameManager) {
+    try {
+      const data = {
+        totalScore: game.totalScore, gamesPlayed: game.gamesPlayed,
+        totalProbesLaunched: game.totalProbesLaunched, totalTargetsCollected: game.totalTargetsCollected,
+        allTimeBestCombo: game.allTimeBestCombo, planetsCrashedInto: game.planetsCrashedInto,
+        perfectLevels: game.perfectLevels, longestOrbit: game.longestOrbit,
+        totalPlayTime: game.totalPlayTime, dailyStreak: game.dailyStreak,
+        xp: game.xp, playerLevel: game.playerLevel, xpToNext: game.xpToNext,
+        levelsCompleted: game.levelsCompleted, tripleStarCount: game.tripleStarCount,
+        slowMoCount: game.slowMoCount, totalPowerUpsCollected: game.totalPowerUpsCollected,
+        wormholeUses: game.wormholeUses,
+        modesPlayed: Array.from(game.modesPlayed),
+        achievements: game.achievements.filter(a => a.unlocked).map(a => a.id),
+        theme: game.theme, showTrajectory: game.showTrajectory, trailLen: game.trailLen,
+        showGravityLines: game.showGravityLines,
+        lastDailyDate: game.lastDailyDate,
+      };
+      localStorage.setItem(GameSaveManager.KEY, JSON.stringify(data));
+    } catch (_e) { /* no-op */ }
+  }
+
+  static load(game: GameManager) {
+    try {
+      const raw = localStorage.getItem(GameSaveManager.KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof d.totalScore === 'number') game.totalScore = d.totalScore;
+      if (typeof d.gamesPlayed === 'number') game.gamesPlayed = d.gamesPlayed;
+      if (typeof d.totalProbesLaunched === 'number') game.totalProbesLaunched = d.totalProbesLaunched;
+      if (typeof d.totalTargetsCollected === 'number') game.totalTargetsCollected = d.totalTargetsCollected;
+      if (typeof d.allTimeBestCombo === 'number') game.allTimeBestCombo = d.allTimeBestCombo;
+      if (typeof d.planetsCrashedInto === 'number') game.planetsCrashedInto = d.planetsCrashedInto;
+      if (typeof d.perfectLevels === 'number') game.perfectLevels = d.perfectLevels;
+      if (typeof d.longestOrbit === 'number') game.longestOrbit = d.longestOrbit;
+      if (typeof d.totalPlayTime === 'number') game.totalPlayTime = d.totalPlayTime;
+      if (typeof d.dailyStreak === 'number') game.dailyStreak = d.dailyStreak;
+      if (typeof d.xp === 'number') game.xp = d.xp;
+      if (typeof d.playerLevel === 'number') game.playerLevel = d.playerLevel;
+      if (typeof d.xpToNext === 'number') game.xpToNext = d.xpToNext;
+      if (typeof d.levelsCompleted === 'number') game.levelsCompleted = d.levelsCompleted;
+      if (typeof d.tripleStarCount === 'number') game.tripleStarCount = d.tripleStarCount;
+      if (typeof d.slowMoCount === 'number') game.slowMoCount = d.slowMoCount;
+      if (typeof d.totalPowerUpsCollected === 'number') game.totalPowerUpsCollected = d.totalPowerUpsCollected;
+      if (typeof d.wormholeUses === 'number') game.wormholeUses = d.wormholeUses;
+      if (Array.isArray(d.modesPlayed)) game.modesPlayed = new Set(d.modesPlayed as GameMode[]);
+      if (Array.isArray(d.achievements)) {
+        for (const id of d.achievements as string[]) {
+          const a = game.achievements.find(a => a.id === id);
+          if (a) a.unlocked = true;
+        }
+      }
+      if (typeof d.theme === 'string' && d.theme in THEMES) game.theme = d.theme as ThemeName;
+      if (typeof d.showTrajectory === 'boolean') game.showTrajectory = d.showTrajectory;
+      if (typeof d.trailLen === 'string') game.trailLen = d.trailLen as 'short' | 'medium' | 'long';
+      if (typeof d.showGravityLines === 'boolean') game.showGravityLines = d.showGravityLines;
+      if (typeof d.lastDailyDate === 'string') game.lastDailyDate = d.lastDailyDate;
+    } catch (_e) { /* no-op */ }
+  }
+}
+
+// ---- R2: Score Popup Pool ----
+class ScorePopupPool {
+  private popups: { mesh: Mesh; velocity: Vector3; life: number; }[] = [];
+  private scene: Object3D;
+  // We use simple sphere "markers" that float up and fade; the combo multiplier flash is handled by particles
+
+  constructor(scene: Object3D) { this.scene = scene; }
+
+  spawn(pos: Vector3, _score: number, combo: number) {
+    // Ring burst at collection point that scales with combo
+    const ringGeo = new TorusGeometry(0.2 + combo * 0.05, 0.015, 8, 24);
+    const ringMat = new MeshBasicMaterial({
+      color: combo >= 5 ? 0xffaa00 : combo >= 3 ? 0xffff00 : 0x00ff88,
+      transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false,
+    });
+    const ring = new Mesh(ringGeo, ringMat);
+    ring.position.copy(pos);
+    ring.lookAt(pos.x, pos.y + 1, pos.z);
+    this.scene.add(ring);
+    this.popups.push({ mesh: ring, velocity: new Vector3(0, 0.8, 0), life: 0.6 + combo * 0.05 });
+  }
+
+  update(delta: number) {
+    for (let i = this.popups.length - 1; i >= 0; i--) {
+      const p = this.popups[i];
+      p.life -= delta;
+      if (p.life <= 0) { this.scene.remove(p.mesh); p.mesh.geometry.dispose(); (p.mesh.material as MeshBasicMaterial).dispose(); this.popups.splice(i, 1); continue; }
+      p.mesh.position.addScaledVector(p.velocity, delta);
+      const s = 1 + (1 - p.life / 0.6) * 0.5;
+      p.mesh.scale.setScalar(s);
+      (p.mesh.material as MeshBasicMaterial).opacity = p.life * 1.2;
+    }
   }
 }
 
@@ -558,13 +659,14 @@ class GameManager {
   slowMo = false; timeScale = 1; charging = false; chargeAmount = 0;
   theme: ThemeName = 'deep-space'; showTrajectory = true;
   trailLen: 'short' | 'medium' | 'long' = 'long';
+  showGravityLines = true;
   activePowerUp: PowerUpType | null = null; powerUpTimer = 0;
   shieldActive = false; magnetActive = false; multiShotActive = false; timeFreezeActive = false;
   totalPowerUpsCollected = 0;
   totalScore = 0; gamesPlayed = 0; totalProbesLaunched = 0; totalTargetsCollected = 0;
   allTimeBestCombo = 0; planetsCrashedInto = 0; perfectLevels = 0; longestOrbit = 0; totalPlayTime = 0;
   dailyStreak = 0; xp = 0; playerLevel = 1; xpToNext = 100;
-  wormholeUses = 0;
+  wormholeUses = 0; lastDailyDate = '';
   currentLevel: LevelConfig | null = null; wells: GravityWell[] = []; probes: Probe[] = [];
   targets: Target[] = []; powerUps: PowerUp[] = []; wormholes: WormholePortal[] = [];
   // R2: Camera follow
@@ -892,11 +994,20 @@ function createWormhole(scene: Object3D, cfg: LevelConfig['wormholes'][0]): Worm
 function createProbe(scene: Object3D): Probe {
   const mesh = new Mesh(new SphereGeometry(PROBE_RADIUS, 16, 16), new MeshStandardMaterial({ color: 0xff8844, emissive: 0xff8844, emissiveIntensity: 0.8, roughness: 0.1, metalness: 0.9 }));
   mesh.visible = false; scene.add(mesh);
+  // R2: Shield bubble
+  const shieldMesh = new Mesh(
+    new SphereGeometry(PROBE_RADIUS * 2.5, 16, 16),
+    new MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.15, blending: AdditiveBlending, depthWrite: false, wireframe: true }),
+  );
+  shieldMesh.visible = false; scene.add(shieldMesh);
+  // R2: Probe glow light
+  const glowLight = new PointLight(0xff8844, 0, 3);
+  scene.add(glowLight);
   const trailPositions: Vector3[] = []; for (let i = 0; i < TRAIL_LENGTH; i++) trailPositions.push(new Vector3());
   const tg = new BufferGeometry(); tg.setAttribute('position', new Float32BufferAttribute(new Float32Array(TRAIL_LENGTH * 3), 3));
   const trailLine = new Line(tg, new LineBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 }));
   trailLine.visible = false; trailLine.frustumCulled = false; scene.add(trailLine);
-  return { mesh, trailLine, trailPositions, position: new Vector3(), velocity: new Vector3(), alive: false, age: 0, orbitCount: 0, lastWellIdx: -1, closestApproach: Infinity, shielded: false, targetsHitThisProbe: 0, slingshotNotified: false };
+  return { mesh, trailLine, trailPositions, position: new Vector3(), velocity: new Vector3(), alive: false, age: 0, orbitCount: 0, lastWellIdx: -1, closestApproach: Infinity, shielded: false, targetsHitThisProbe: 0, slingshotNotified: false, shieldMesh, glowLight };
 }
 
 function createPredictionLine(scene: Object3D): Line {
@@ -945,6 +1056,7 @@ function simulateTrajectory(startPos: Vector3, startVel: Vector3, wells: Gravity
 class OrbitPhysicsSystem extends createSystem({}) {
   private game!: GameManager; private audio!: AudioManager; private particles!: ParticlePool;
   private shake!: ScreenShake; private shootingStars!: ShootingStarManager;
+  private scorePopups!: ScorePopupPool;
   private probes: Probe[] = []; private wells: GravityWell[] = [];
   private targets: Target[] = []; private powerUps: PowerUp[] = []; private wormholes: WormholePortal[] = [];
   private energyBeams: EnergyBeam[] = [];
@@ -952,23 +1064,36 @@ class OrbitPhysicsSystem extends createSystem({}) {
   private accel = new Vector3();
   private starTwinkle: ((time: number) => void) | null = null;
   private globalTime = 0;
+  // R2: Time freeze visual refs
+  private ambient: AmbientLight | null = null;
+  private fog: Fog | null = null;
+  private savedAmbientColor = new Color();
+  private savedFogColor = new Color();
+  private timeFreezeVisualActive = false;
+  // R2: Speed color interpolation
+  private speedColorSlow = new Color(0x4488ff);
+  private speedColorFast = new Color(0xff4444);
 
   setRefs(refs: {
     game: GameManager; audio: AudioManager; particles: ParticlePool; shake: ScreenShake;
-    shootingStars: ShootingStarManager;
+    shootingStars: ShootingStarManager; scorePopups: ScorePopupPool;
     probes: Probe[]; wells: GravityWell[]; targets: Target[];
     powerUps: PowerUp[]; wormholes: WormholePortal[];
     energyBeams: EnergyBeam[];
     dustUpdate?: (delta: number) => void;
     starTwinkle?: (time: number) => void;
+    ambient?: AmbientLight; fog?: Fog;
   }) {
     this.game = refs.game; this.audio = refs.audio; this.particles = refs.particles;
     this.shake = refs.shake; this.shootingStars = refs.shootingStars;
+    this.scorePopups = refs.scorePopups;
     this.probes = refs.probes; this.wells = refs.wells;
     this.targets = refs.targets; this.powerUps = refs.powerUps; this.wormholes = refs.wormholes;
     this.energyBeams = refs.energyBeams;
     if (refs.dustUpdate) this.dustUpdate = refs.dustUpdate;
     if (refs.starTwinkle) this.starTwinkle = refs.starTwinkle;
+    if (refs.ambient) { this.ambient = refs.ambient; this.savedAmbientColor.copy(refs.ambient.color); }
+    if (refs.fog) { this.fog = refs.fog; this.savedFogColor.copy(refs.fog.color); }
   }
 
   update(delta: number, _time: number) {
@@ -1014,6 +1139,17 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (this.game.state !== 'playing') return;
     const dt = delta * this.game.timeScale;
     this.game.elapsedTime += dt; this.game.totalPlayTime += delta;
+
+    // R2: Time freeze visual effect
+    if (this.game.timeFreezeActive && !this.timeFreezeVisualActive) {
+      this.timeFreezeVisualActive = true;
+      if (this.ambient) this.ambient.color.set(0x224488);
+      if (this.fog) this.fog.color.set(0x001133);
+    } else if (!this.game.timeFreezeActive && this.timeFreezeVisualActive) {
+      this.timeFreezeVisualActive = false;
+      if (this.ambient) this.ambient.color.copy(this.savedAmbientColor);
+      if (this.fog) this.fog.color.copy(this.savedFogColor);
+    }
 
     // Power-up timer
     if (this.game.activePowerUp && this.game.activePowerUp !== 'shield') {
@@ -1071,6 +1207,21 @@ class OrbitPhysicsSystem extends createSystem({}) {
       pr.velocity.addScaledVector(this.accel, dt);
       pr.position.addScaledVector(pr.velocity, dt);
       pr.mesh.position.copy(pr.position);
+      // R2: Shield bubble follows probe
+      pr.shieldMesh.position.copy(pr.position);
+      pr.shieldMesh.visible = pr.shielded;
+      pr.shieldMesh.rotation.y += dt * 2;
+      pr.shieldMesh.rotation.x += dt * 1.5;
+      // R2: Probe glow light follows probe, intensity based on speed
+      const spd = pr.velocity.length();
+      pr.glowLight.position.copy(pr.position);
+      pr.glowLight.intensity = Math.min(spd * 0.1, 0.8);
+      // R2: Speed-based trail color
+      const spdNorm = Math.min(spd / LAUNCH_MAX_SPEED, 1);
+      const trailColor = new Color().lerpColors(this.speedColorSlow, this.speedColorFast, spdNorm);
+      (pr.trailLine.material as LineBasicMaterial).color.copy(trailColor);
+      // R2: Probe emissive intensity based on speed
+      (pr.mesh.material as MeshStandardMaterial).emissiveIntensity = 0.5 + spdNorm * 0.8;
       // Trail
       pr.trailPositions.pop(); pr.trailPositions.unshift(pr.position.clone());
       const tl = this.game.getTrailLen();
@@ -1173,10 +1324,13 @@ class OrbitPhysicsSystem extends createSystem({}) {
 
     this.game.checkAchievements();
     this.particles.update(dt);
+    this.scorePopups.update(dt);
     // Animate wells
     for (const w of this.wells) {
       w.pulsePhase += dt * 2; (w.glowMesh.material as MeshBasicMaterial).opacity = 0.15 + Math.sin(w.pulsePhase) * 0.05;
-      w.ringMesh.rotation.z += dt * 0.3; w.fieldLines.forEach((l, i) => { l.rotation.y += dt * (0.1 + i * 0.05); });
+      w.ringMesh.rotation.z += dt * 0.3;
+      // R2: Toggle gravity field lines visibility
+      w.fieldLines.forEach((l, i) => { l.rotation.y += dt * (0.1 + i * 0.05); l.visible = this.game.showGravityLines; });
     }
     // Animate targets
     for (const t of this.targets) { if (t.collected) continue; t.pulsePhase += dt * 3; t.group.rotation.y += dt; t.group.rotation.x += dt * 0.5; t.group.scale.setScalar(1 + Math.sin(t.pulsePhase) * 0.15); }
@@ -1212,8 +1366,11 @@ class OrbitPhysicsSystem extends createSystem({}) {
     this.game.lastCollectTime = now;
     if (this.game.combo > this.game.bestCombo) this.game.bestCombo = this.game.combo;
     if (this.game.combo > this.game.allTimeBestCombo) this.game.allTimeBestCombo = this.game.combo;
-    this.game.score += tgt.points * this.game.combo; this.game.totalScore += tgt.points * this.game.combo;
+    const pts = tgt.points * this.game.combo;
+    this.game.score += pts; this.game.totalScore += pts;
     this.audio.playCollect(this.game.combo);
+    // R2: Score popup ring
+    this.scorePopups.spawn(tgt.position, pts, this.game.combo);
     // R2: Bigger particle burst for combos
     const burstCount = 25 + this.game.combo * 5;
     this.particles.emit(tgt.position, new Color(0x00ff88), burstCount, 4 + this.game.combo * 0.5, 1.0);
@@ -1242,11 +1399,22 @@ class OrbitPhysicsSystem extends createSystem({}) {
 
   private killProbe(pr: Probe) {
     pr.alive = false; pr.mesh.visible = false; pr.trailLine.visible = false;
+    pr.shieldMesh.visible = false; pr.glowLight.intensity = 0;
     if (this.game.cameraFollowTarget === pr) this.game.cameraFollowTarget = null;
   }
 
   private endLevel() {
     if (this.game.state !== 'playing') return;
+    // R2: Track longest orbit from all probes
+    for (const pr of this.probes) {
+      if (pr.orbitCount > this.game.longestOrbit) this.game.longestOrbit = pr.orbitCount;
+    }
+    // R2: Restore time freeze visual if active
+    if (this.timeFreezeVisualActive) {
+      this.timeFreezeVisualActive = false;
+      if (this.ambient) this.ambient.color.copy(this.savedAmbientColor);
+      if (this.fog) this.fog.color.copy(this.savedFogColor);
+    }
     const allDone = this.targets.every(t => t.collected);
     if (allDone && this.game.targetsTotal > 0) {
       this.game.levelsCompleted++; const stars = this.game.getStars();
@@ -1257,6 +1425,8 @@ class OrbitPhysicsSystem extends createSystem({}) {
     this.game.gamesPlayed++; this.game.modesPlayed.add(this.game.mode); this.game.checkAchievements();
     // R2: Camera follow off when level ends
     this.game.cameraFollow = false; this.game.cameraFollowTarget = null;
+    // R2: Save progress
+    GameSaveManager.save(this.game);
   }
 }
 
@@ -1440,6 +1610,8 @@ class GameUISystem extends createSystem({
       this.btn(e, 'btn-stats', () => this.showP('stats'));
       this.btn(e, 'btn-settings', () => this.showP('settings'));
       this.btn(e, 'btn-how', () => this.showP('howToPlay'));
+      // R2: Show player info on main menu
+      this.st(e, 'player-info', `Lv.${this.game.playerLevel} ${this.game.getPlayerTitle()}`);
     });
     this.queries.modeSelect.subscribe('qualify', (e) => {
       this.pe['modeSelect'] = e;
@@ -1453,12 +1625,20 @@ class GameUISystem extends createSystem({
     this.queries.howToPlay.subscribe('qualify', (e) => { this.pe['howToPlay'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
     this.queries.settings.subscribe('qualify', (e) => {
       this.pe['settings'] = e;
+      // R2: Show current values
+      this.st(e, 'music-vol', `${Math.round(this.audio.musicVolume * 100)}%`);
+      this.st(e, 'sfx-vol', `${Math.round(this.audio.sfxVolume * 100)}%`);
+      this.st(e, 'preview-toggle', this.game.showTrajectory ? 'ON' : 'OFF');
+      this.st(e, 'trail-len', this.game.trailLen.charAt(0).toUpperCase() + this.game.trailLen.slice(1));
+      this.st(e, 'theme-name', this.game.theme.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+      this.st(e, 'grav-lines', this.game.showGravityLines ? 'ON' : 'OFF');
       this.btn(e, 'music-vol', () => { const v = [0,0.2,0.4,0.6,0.8,1.0]; const i = v.indexOf(this.audio.musicVolume); this.audio.setMusicVolume(v[(i+1)%v.length]); this.st(e, 'music-vol', `${Math.round(this.audio.musicVolume*100)}%`); });
       this.btn(e, 'sfx-vol', () => { const v = [0,0.2,0.4,0.6,0.8,1.0]; const i = v.indexOf(this.audio.sfxVolume); this.audio.setSfxVolume(v[(i+1)%v.length]); this.st(e, 'sfx-vol', `${Math.round(this.audio.sfxVolume*100)}%`); });
       this.btn(e, 'preview-toggle', () => { this.game.showTrajectory = !this.game.showTrajectory; this.st(e, 'preview-toggle', this.game.showTrajectory ? 'ON' : 'OFF'); });
       this.btn(e, 'trail-len', () => { const o: Array<'short'|'medium'|'long'> = ['short','medium','long']; const i = o.indexOf(this.game.trailLen); this.game.trailLen = o[(i+1)%o.length]; this.st(e, 'trail-len', this.game.trailLen.charAt(0).toUpperCase() + this.game.trailLen.slice(1)); });
       this.btn(e, 'theme-name', () => this.showP('themeSelect'));
-      this.btn(e, 'btn-back', () => this.showP('mainMenu'));
+      this.btn(e, 'grav-lines', () => { this.game.showGravityLines = !this.game.showGravityLines; this.st(e, 'grav-lines', this.game.showGravityLines ? 'ON' : 'OFF'); });
+      this.btn(e, 'btn-back', () => { GameSaveManager.save(this.game); this.showP('mainMenu'); });
     });
     this.queries.stats.subscribe('qualify', (e) => { this.pe['stats'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
     this.queries.achievements.subscribe('qualify', (e) => {
@@ -1507,6 +1687,11 @@ class GameUISystem extends createSystem({
     if (name === 'stats') this.refreshStats();
     if (name === 'achievements') this.refreshAch();
     if (name === 'levelSelect') this.refreshLvlSelect();
+    // R2: Refresh player info on main menu
+    if (name === 'mainMenu') {
+      const e = this.pe['mainMenu'];
+      if (e) this.st(e, 'player-info', `Lv.${this.game.playerLevel} ${this.game.getPlayerTitle()}`);
+    }
   }
 
   // R2: Refresh level select display
@@ -1626,6 +1811,12 @@ class GameUISystem extends createSystem({
         const stars = this.game.getStars();
         for (let i = 1; i <= 3; i++) { this.st(e, `star-${i}`, stars >= i ? '*' : '-'); (this.doc(e)?.getElementById(`star-${i}`) as UIKit.Text | undefined)?.setProperties({ color: stars >= i ? '#ffaa00' : '#444466' }); }
         this.st(e, 'score-text', `Score: ${this.game.score}`);
+        // R2: Extra stats on level complete
+        this.st(e, 'combo-text', `Best Combo: x${this.game.bestCombo}`);
+        const acc = this.game.probesUsed > 0 ? Math.round(this.game.targetsCollected / this.game.probesUsed * 100) : 0;
+        this.st(e, 'accuracy-text', `Accuracy: ${acc}%`);
+        const xpGain = 50 + stars * 25 + Math.floor(this.game.score / 10);
+        this.st(e, 'xp-text', `+${xpGain} XP`);
         // R2: High score display
         if (this.game.newHighScore) {
           this.st(e, 'score-text', `Score: ${this.game.score} - NEW BEST!`);
@@ -1706,6 +1897,10 @@ async function main() {
   const particles = new ParticlePool(world.scene);
   const shake = new ScreenShake();
   const highScores = new HighScoreManager();
+  const scorePopups = new ScorePopupPool(world.scene);
+
+  // R2: Load saved progress
+  GameSaveManager.load(game);
   let currentTheme = THEMES[game.theme];
 
   // Lighting
@@ -1774,7 +1969,7 @@ async function main() {
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
     audio.startDrone();
@@ -1871,7 +2066,7 @@ async function main() {
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
   uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
 

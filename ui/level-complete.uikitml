@@ -1,13 +1,16 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" width="350" height="200" backgroundColor="#0a0a2e" borderRadius="16" padding="20" borderWidth="2" borderColor="#00ffff">
-  <text name="title" fontSize="24" fontWeight="bold" color="#00ffff" marginBottom="10">LEVEL COMPLETE</text>
-  <container flexDirection="row" justifyContent="center" gap="10" marginBottom="10">
+<container flexDirection="column" alignItems="center" justifyContent="center" width="400" height="350" backgroundColor="#0a0a2e" borderRadius="16" paddingTop="16" paddingBottom="16" paddingLeft="20" paddingRight="20" borderWidth="2" borderColor="#00ffff">
+  <text name="title" fontSize="24" fontWeight="bold" color="#00ffff" marginBottom="8">LEVEL COMPLETE</text>
+  <container flexDirection="row" justifyContent="center" gap="10" marginBottom="8">
     <text name="star-1" fontSize="32" color="#444466">*</text>
     <text name="star-2" fontSize="32" color="#444466">*</text>
     <text name="star-3" fontSize="32" color="#444466">*</text>
   </container>
-  <text name="score-text" fontSize="16" color="#aaaacc">Score: 0</text>
-  <container flexDirection="row" gap="10" marginTop="10">
-    <text name="btn-next-lvl" fontSize="16" color="#00ff88" backgroundColor="#003322" padding="8" borderRadius="6" borderWidth="1" borderColor="#00ff88" cursor="pointer">NEXT</text>
-    <text name="btn-replay" fontSize="16" color="#ffaa00" backgroundColor="#332200" padding="8" borderRadius="6" borderWidth="1" borderColor="#ffaa00" cursor="pointer">REPLAY</text>
+  <text name="score-text" fontSize="16" color="#aaaacc" marginBottom="4">Score: 0</text>
+  <text name="combo-text" fontSize="14" color="#ffaa00" marginBottom="4">Best Combo: x1</text>
+  <text name="accuracy-text" fontSize="14" color="#00ff88" marginBottom="4">Accuracy: 0%</text>
+  <text name="xp-text" fontSize="14" color="#44aaff" marginBottom="8">+0 XP</text>
+  <container flexDirection="row" gap="10" marginTop="6">
+    <text name="btn-next-lvl" fontSize="16" color="#00ff88" backgroundColor="#003322" paddingTop="8" paddingBottom="8" paddingLeft="16" paddingRight="16" borderRadius="6" borderWidth="1" borderColor="#00ff88" cursor="pointer">NEXT</text>
+    <text name="btn-replay" fontSize="16" color="#ffaa00" backgroundColor="#332200" paddingTop="8" paddingBottom="8" paddingLeft="16" paddingRight="16" borderRadius="6" borderWidth="1" borderColor="#ffaa00" cursor="pointer">REPLAY</text>
   </container>
 </container>
