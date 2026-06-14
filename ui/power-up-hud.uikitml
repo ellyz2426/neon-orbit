@@ -1,0 +1,14 @@
+<container flexDirection="row" alignItems="center" justifyContent="center" width="300" height="50" backgroundColor="#0a0a1acc" borderRadius="10" padding="8" borderWidth="1" borderColor="#ffaa0044" gap="12">
+  <container flexDirection="column" alignItems="center">
+    <text name="pu-icon" fontSize="18" color="#444466">-</text>
+    <text name="pu-name" fontSize="10" color="#666688">No Power-Up</text>
+  </container>
+  <container flexDirection="column" alignItems="center">
+    <text name="pu-timer-label" fontSize="8" color="#ffaa0044">DURATION</text>
+    <text name="pu-timer" fontSize="14" fontWeight="bold" color="#ffaa00">--</text>
+  </container>
+  <container flexDirection="column" alignItems="center">
+    <text name="shield-icon" fontSize="12" color="#444466">SH</text>
+    <text name="shield-status" fontSize="8" color="#444466">OFF</text>
+  </container>
+</container>

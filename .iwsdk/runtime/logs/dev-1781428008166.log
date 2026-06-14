@@ -1,0 +1,35 @@
+
+> neon-orbit@1.0.0 dev:runtime
+> vite
+
+🚀 Generating initial UIKitML files for dev server...
+👁️  UIKitML file watcher started - monitoring for changes...
+
+  VITE v7.3.5  ready in 2100 ms
+
+  ➜  Local:   https://localhost:5173/
+  ➜  Network: https://198.19.0.2:5173/
+❌ IWSDK: Failed to launch browser: page.goto: net::ERR_SSL_VERSION_OR_CIPHER_MISMATCH at https://localhost:5173/
+Call log:
+  - navigating to "https://localhost:5173/", waiting until "networkidle"
+
+    at launchManagedBrowser (/home/hatch/workspace/immersive-web-sdk/packages/vite-plugin-dev/dist/index.js:198:16)
+    at async file:///home/hatch/workspace/immersive-web-sdk/packages/vite-plugin-dev/dist/index.js:1535:41 {
+  name: 'Error'
+}
+
+🥽 IWSDK Dev Summary (Development):
+  - Device: metaQuest3
+  - Runtime injected: 1116.7KB
+  - Activation mode: localhost
+  - AI: agent mode (WebSocket at /__iwer_mcp)
+  - Note: Runtime only activates on localhost/local networks
+
+
+🥽 IWSDK Dev Summary (Development):
+  - Device: metaQuest3
+  - Runtime injected: 1116.7KB
+  - Activation mode: localhost
+  - AI: agent mode (WebSocket at /__iwer_mcp)
+  - Note: Runtime only activates on localhost/local networks
+
