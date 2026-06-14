@@ -1,0 +1,674 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "HOW TO PLAY"
+        ],
+        "properties": {
+          "name": "title",
+          "fontsize": "32",
+          "fontweight": "bold",
+          "color": "#8888ff",
+          "marginbottom": "10"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "1. AIM your launcher at the field"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-4"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "2. HOLD trigger to charge power"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-5"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "3. RELEASE to launch a probe"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-6"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "4. Watch gravity bend the path"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-7"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "5. Collect targets to score"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-8"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "6. Chain combos for multipliers"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-9"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "7. Grab power-ups for abilities"
+            ],
+            "properties": {
+              "fontsize": "14",
+              "color": "#ccccff"
+            },
+            "dataUid": "uid-10"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "8",
+          "width": "100%",
+          "marginbottom": "12"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "VR Controls"
+            ],
+            "properties": {
+              "fontsize": "12",
+              "fontweight": "bold",
+              "color": "#ffaa00"
+            },
+            "dataUid": "uid-12"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "R.Trigger: Charge + Launch"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#ffcc66"
+            },
+            "dataUid": "uid-13"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Grip: Toggle Slow-Motion"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#ffcc66"
+            },
+            "dataUid": "uid-14"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "B/Y: Pause"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#ffcc66"
+            },
+            "dataUid": "uid-15"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "L.Thumbstick Click: Camera Follow"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#ffcc66"
+            },
+            "dataUid": "uid-16"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "4",
+          "width": "100%",
+          "marginbottom": "10"
+        },
+        "dataUid": "uid-11"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Browser Controls"
+            ],
+            "properties": {
+              "fontsize": "12",
+              "fontweight": "bold",
+              "color": "#00ffff"
+            },
+            "dataUid": "uid-18"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Space: Charge + Launch"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ccff"
+            },
+            "dataUid": "uid-19"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Shift: Toggle Slow-Motion"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ccff"
+            },
+            "dataUid": "uid-20"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "P/Esc: Pause"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ccff"
+            },
+            "dataUid": "uid-21"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "F: Camera Follow Probe"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ccff"
+            },
+            "dataUid": "uid-22"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "4",
+          "width": "100%",
+          "marginbottom": "10"
+        },
+        "dataUid": "uid-17"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Power-Ups"
+            ],
+            "properties": {
+              "fontsize": "12",
+              "fontweight": "bold",
+              "color": "#00ff88"
+            },
+            "dataUid": "uid-24"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Shield: Survive one crash"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ffaa"
+            },
+            "dataUid": "uid-25"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Magnet: Attract targets"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ffaa"
+            },
+            "dataUid": "uid-26"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Multi-Shot: Launch 3 probes"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ffaa"
+            },
+            "dataUid": "uid-27"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Time Freeze: Freeze planets"
+            ],
+            "properties": {
+              "fontsize": "11",
+              "color": "#66ffaa"
+            },
+            "dataUid": "uid-28"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "4",
+          "width": "100%"
+        },
+        "dataUid": "uid-23"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BACK"
+        ],
+        "properties": {
+          "name": "btn-back",
+          "fontsize": "18",
+          "color": "#aaaaaa",
+          "backgroundcolor": "#222222",
+          "paddingtop": "10",
+          "paddingbottom": "10",
+          "paddingleft": "20",
+          "paddingright": "20",
+          "borderradius": "8",
+          "textalign": "center",
+          "margintop": "10",
+          "borderwidth": "1",
+          "bordercolor": "#666666",
+          "cursor": "pointer"
+        },
+        "dataUid": "uid-29"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "alignitems": "center",
+      "justifycontent": "center",
+      "width": "450",
+      "height": "500",
+      "backgroundcolor": "#0a0a2e",
+      "borderradius": "20",
+      "paddingtop": "20",
+      "paddingbottom": "20",
+      "paddingleft": "25",
+      "paddingright": "25",
+      "borderwidth": "2",
+      "bordercolor": "#8888ff"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 38,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 105
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 3,
+        "column": 2
+      },
+      "end": {
+        "line": 11,
+        "column": 14
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 4,
+        "column": 4
+      },
+      "end": {
+        "line": 4,
+        "column": 80
+      }
+    },
+    "uid-5": {
+      "start": {
+        "line": 5,
+        "column": 4
+      },
+      "end": {
+        "line": 5,
+        "column": 78
+      }
+    },
+    "uid-6": {
+      "start": {
+        "line": 6,
+        "column": 4
+      },
+      "end": {
+        "line": 6,
+        "column": 75
+      }
+    },
+    "uid-7": {
+      "start": {
+        "line": 7,
+        "column": 4
+      },
+      "end": {
+        "line": 7,
+        "column": 77
+      }
+    },
+    "uid-8": {
+      "start": {
+        "line": 8,
+        "column": 4
+      },
+      "end": {
+        "line": 8,
+        "column": 74
+      }
+    },
+    "uid-9": {
+      "start": {
+        "line": 9,
+        "column": 4
+      },
+      "end": {
+        "line": 9,
+        "column": 78
+      }
+    },
+    "uid-10": {
+      "start": {
+        "line": 10,
+        "column": 4
+      },
+      "end": {
+        "line": 10,
+        "column": 78
+      }
+    },
+    "uid-11": {
+      "start": {
+        "line": 13,
+        "column": 2
+      },
+      "end": {
+        "line": 19,
+        "column": 14
+      }
+    },
+    "uid-12": {
+      "start": {
+        "line": 14,
+        "column": 4
+      },
+      "end": {
+        "line": 14,
+        "column": 76
+      }
+    },
+    "uid-13": {
+      "start": {
+        "line": 15,
+        "column": 4
+      },
+      "end": {
+        "line": 15,
+        "column": 73
+      }
+    },
+    "uid-14": {
+      "start": {
+        "line": 16,
+        "column": 4
+      },
+      "end": {
+        "line": 16,
+        "column": 71
+      }
+    },
+    "uid-15": {
+      "start": {
+        "line": 17,
+        "column": 4
+      },
+      "end": {
+        "line": 17,
+        "column": 57
+      }
+    },
+    "uid-16": {
+      "start": {
+        "line": 18,
+        "column": 4
+      },
+      "end": {
+        "line": 18,
+        "column": 80
+      }
+    },
+    "uid-17": {
+      "start": {
+        "line": 21,
+        "column": 2
+      },
+      "end": {
+        "line": 27,
+        "column": 14
+      }
+    },
+    "uid-18": {
+      "start": {
+        "line": 22,
+        "column": 4
+      },
+      "end": {
+        "line": 22,
+        "column": 81
+      }
+    },
+    "uid-19": {
+      "start": {
+        "line": 23,
+        "column": 4
+      },
+      "end": {
+        "line": 23,
+        "column": 69
+      }
+    },
+    "uid-20": {
+      "start": {
+        "line": 24,
+        "column": 4
+      },
+      "end": {
+        "line": 24,
+        "column": 72
+      }
+    },
+    "uid-21": {
+      "start": {
+        "line": 25,
+        "column": 4
+      },
+      "end": {
+        "line": 25,
+        "column": 59
+      }
+    },
+    "uid-22": {
+      "start": {
+        "line": 26,
+        "column": 4
+      },
+      "end": {
+        "line": 26,
+        "column": 69
+      }
+    },
+    "uid-23": {
+      "start": {
+        "line": 29,
+        "column": 2
+      },
+      "end": {
+        "line": 35,
+        "column": 14
+      }
+    },
+    "uid-24": {
+      "start": {
+        "line": 30,
+        "column": 4
+      },
+      "end": {
+        "line": 30,
+        "column": 74
+      }
+    },
+    "uid-25": {
+      "start": {
+        "line": 31,
+        "column": 4
+      },
+      "end": {
+        "line": 31,
+        "column": 72
+      }
+    },
+    "uid-26": {
+      "start": {
+        "line": 32,
+        "column": 4
+      },
+      "end": {
+        "line": 32,
+        "column": 70
+      }
+    },
+    "uid-27": {
+      "start": {
+        "line": 33,
+        "column": 4
+      },
+      "end": {
+        "line": 33,
+        "column": 74
+      }
+    },
+    "uid-28": {
+      "start": {
+        "line": 34,
+        "column": 4
+      },
+      "end": {
+        "line": 34,
+        "column": 74
+      }
+    },
+    "uid-29": {
+      "start": {
+        "line": 37,
+        "column": 2
+      },
+      "end": {
+        "line": 37,
+        "column": 267
+      }
+    }
+  }
+}

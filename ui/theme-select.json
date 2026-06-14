@@ -1,0 +1,263 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "SELECT THEME"
+        ],
+        "properties": {
+          "name": "title",
+          "fontsize": "28",
+          "fontweight": "bold",
+          "color": "#ff44ff",
+          "marginbottom": "10"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "container",
+        "type": "custom",
+        "children": [
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Deep Space - Classic dark void"
+            ],
+            "properties": {
+              "name": "btn-deep-space",
+              "fontsize": "16",
+              "color": "#4444ff",
+              "backgroundcolor": "#111133",
+              "padding": "10",
+              "borderradius": "8",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#4444ff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-4"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Nebula - Purple cosmic clouds"
+            ],
+            "properties": {
+              "name": "btn-nebula",
+              "fontsize": "16",
+              "color": "#ff44ff",
+              "backgroundcolor": "#220022",
+              "padding": "10",
+              "borderradius": "8",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ff44ff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-5"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Solar Flare - Warm orange glow"
+            ],
+            "properties": {
+              "name": "btn-solar",
+              "fontsize": "16",
+              "color": "#ffaa00",
+              "backgroundcolor": "#332200",
+              "padding": "10",
+              "borderradius": "8",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#ffaa00",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-6"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Ice Giant - Cool blue tones"
+            ],
+            "properties": {
+              "name": "btn-ice",
+              "fontsize": "16",
+              "color": "#88ddff",
+              "backgroundcolor": "#112233",
+              "padding": "10",
+              "borderradius": "8",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#88ddff",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-7"
+          },
+          {
+            "sourceTag": "text",
+            "type": "custom",
+            "children": [
+              "Void - Minimal green wireframe"
+            ],
+            "properties": {
+              "name": "btn-void",
+              "fontsize": "16",
+              "color": "#00ff88",
+              "backgroundcolor": "#002211",
+              "padding": "10",
+              "borderradius": "8",
+              "textalign": "center",
+              "borderwidth": "1",
+              "bordercolor": "#00ff88",
+              "cursor": "pointer"
+            },
+            "dataUid": "uid-8"
+          }
+        ],
+        "properties": {
+          "flexdirection": "column",
+          "gap": "10",
+          "width": "100%"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BACK"
+        ],
+        "properties": {
+          "name": "btn-back",
+          "fontsize": "18",
+          "color": "#aaaaaa",
+          "backgroundcolor": "#222222",
+          "padding": "10",
+          "borderradius": "8",
+          "width": "200",
+          "textalign": "center",
+          "margintop": "15",
+          "borderwidth": "1",
+          "bordercolor": "#666666",
+          "cursor": "pointer"
+        },
+        "dataUid": "uid-9"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "alignitems": "center",
+      "justifycontent": "center",
+      "width": "450",
+      "height": "450",
+      "backgroundcolor": "#0a0a2e",
+      "borderradius": "20",
+      "padding": "25",
+      "borderwidth": "2",
+      "bordercolor": "#ff44ff"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 12,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 106
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 3,
+        "column": 2
+      },
+      "end": {
+        "line": 9,
+        "column": 14
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 4,
+        "column": 4
+      },
+      "end": {
+        "line": 4,
+        "column": 229
+      }
+    },
+    "uid-5": {
+      "start": {
+        "line": 5,
+        "column": 4
+      },
+      "end": {
+        "line": 5,
+        "column": 224
+      }
+    },
+    "uid-6": {
+      "start": {
+        "line": 6,
+        "column": 4
+      },
+      "end": {
+        "line": 6,
+        "column": 224
+      }
+    },
+    "uid-7": {
+      "start": {
+        "line": 7,
+        "column": 4
+      },
+      "end": {
+        "line": 7,
+        "column": 219
+      }
+    },
+    "uid-8": {
+      "start": {
+        "line": 8,
+        "column": 4
+      },
+      "end": {
+        "line": 8,
+        "column": 223
+      }
+    },
+    "uid-9": {
+      "start": {
+        "line": 11,
+        "column": 2
+      },
+      "end": {
+        "line": 11,
+        "column": 222
+      }
+    }
+  }
+}
