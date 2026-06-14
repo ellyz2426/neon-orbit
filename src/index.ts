@@ -751,7 +751,7 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     case 'time-trial': wc = 2 + Math.min(Math.floor(levelNum / 3), 3); tc = 5 + Math.min(levelNum, 10); pl = 99; tl = 30 + levelNum * 5; break;
     case 'precision': wc = 1 + Math.min(Math.floor(levelNum / 2), 3); tc = 2 + Math.min(Math.floor(levelNum / 2), 4); pl = tc; tl = 0; break;
     case 'chaos': wc = 5 + Math.min(levelNum, 8); tc = 4 + Math.min(levelNum, 6); pl = tc + 5; tl = 0; break;
-    case 'zen': wc = 3 + Math.min(Math.floor(levelNum / 2), 5); tc = 0; pl = 99; tl = 0; break;
+    case 'zen': wc = 3 + Math.min(Math.floor(levelNum / 2), 5); tc = 5; pl = 99; tl = 0; break;
     case 'survival': wc = 2 + Math.min(Math.floor(levelNum / 2), 6); tc = 3 + levelNum; pl = Math.max(tc - levelNum, 3); tl = 60; break;
     case 'daily': wc = 3 + Math.floor(rng() * 4); tc = 5 + Math.floor(rng() * 5); pl = tc + 2; tl = 90; break;
     default: wc = 3; tc = 5; pl = 8; tl = 0;
@@ -818,7 +818,13 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
   }
 
   const names: Record<GameMode, string> = { classic: 'Classic', slingshot: 'Slingshot', 'time-trial': 'Time Trial', precision: 'Precision', chaos: 'Chaos', zen: 'Zen', survival: 'Survival', daily: 'Daily' };
-  return { wells, targets, powerUps, wormholes, asteroids, probeLimit: pl, timeLimit: tl, name: `${names[mode]} ${mode === 'daily' ? '' : `Level ${levelNum}`}` };
+  // R3: Procedural level names
+  const levelAdjectives = ['Stellar', 'Cosmic', 'Orbital', 'Nebular', 'Void', 'Nova', 'Pulsar', 'Quasar', 'Solar', 'Lunar', 'Astral', 'Galactic'];
+  const levelNouns = ['Crossing', 'Drift', 'Expanse', 'Passage', 'Current', 'Rift', 'Reach', 'Domain', 'Stretch', 'Field', 'Zone', 'Run'];
+  const adjIdx = Math.floor(rng() * levelAdjectives.length);
+  const nounIdx = Math.floor(rng() * levelNouns.length);
+  const levelTitle = mode === 'daily' ? 'Daily Challenge' : `${levelAdjectives[adjIdx]} ${levelNouns[nounIdx]}`;
+  return { wells, targets, powerUps, wormholes, asteroids, probeLimit: pl, timeLimit: tl, name: `${names[mode]} ${mode === 'daily' ? '' : levelNum} - ${levelTitle}` };
 }
 
 
@@ -921,6 +927,9 @@ class GameManager {
   tutorialHintsShown = 0; tutorialComplete = false;
   // R3: Celebration
   celebration: CelebrationState = { active: false, timer: 0, threeStars: false };
+  // R3: Zen mode target respawn tracking
+  zenRespawnTimers: { timer: number; config: LevelConfig['targets'][0] }[] = [];
+  zenTargetsCycled = 0;
   // R3: Proximity danger
   dangerWarningTimer = 0; maxProximity = 0;
 
@@ -1156,6 +1165,16 @@ function createGravityWell(scene: Object3D, cfg: LevelConfig['wells'][0]): Gravi
     const diskPts = new Points(diskGeo, new PointsMaterial({ size: 0.04, vertexColors: true, transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
     group.add(diskPts);
   }
+  // R3: Gravitational distortion sphere — visible halo around high-mass wells
+  if (cfg.mass >= 3) {
+    const distortGeo = new SphereGeometry(cfg.radius * 3, 24, 24);
+    const distortMat = new MeshBasicMaterial({
+      color: cfg.color, transparent: true, opacity: 0.03,
+      blending: AdditiveBlending, depthWrite: false, side: DoubleSide,
+    });
+    const distortMesh = new Mesh(distortGeo, distortMat);
+    group.add(distortMesh);
+  }
   scene.add(group);
   const pos = new Vector3(cfg.x, cfg.y, cfg.z);
   return {
@@ -1378,6 +1397,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
   private starTwinkle: ((time: number) => void) | null = null;
   private globalTime = 0;
   private onSurvivalWave: (() => void) | null = null;
+  private onZenRespawn: ((cfg: LevelConfig['targets'][0]) => Target) | null = null;
   // R2: Time freeze visual refs
   private ambient: AmbientLight | null = null;
   private fog: Fog | null = null;
@@ -1398,6 +1418,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     starTwinkle?: (time: number) => void;
     ambient?: AmbientLight; fog?: Fog;
     onSurvivalWave?: () => void;
+    onZenRespawn?: (cfg: LevelConfig['targets'][0]) => Target;
   }) {
     this.game = refs.game; this.audio = refs.audio; this.particles = refs.particles;
     this.shake = refs.shake; this.shootingStars = refs.shootingStars;
@@ -1412,6 +1433,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (refs.ambient) { this.ambient = refs.ambient; this.savedAmbientColor.copy(refs.ambient.color); }
     if (refs.fog) { this.fog = refs.fog; this.savedFogColor.copy(refs.fog.color); }
     if (refs.onSurvivalWave) this.onSurvivalWave = refs.onSurvivalWave;
+    if (refs.onZenRespawn) this.onZenRespawn = refs.onZenRespawn;
   }
 
   update(delta: number, _time: number) {
@@ -1465,6 +1487,23 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (this.game.state !== 'playing') return;
     const dt = delta * this.game.timeScale;
     this.game.elapsedTime += dt; this.game.totalPlayTime += delta;
+
+    // R3: Zen mode target respawning
+    if (this.game.mode === 'zen' && this.onZenRespawn) {
+      for (let i = this.game.zenRespawnTimers.length - 1; i >= 0; i--) {
+        this.game.zenRespawnTimers[i].timer -= dt;
+        if (this.game.zenRespawnTimers[i].timer <= 0) {
+          const cfg = this.game.zenRespawnTimers[i].config;
+          const newTarget = this.onZenRespawn(cfg);
+          this.targets.push(newTarget);
+          this.game.targets = this.targets;
+          this.game.targetsTotal++;
+          this.game.zenRespawnTimers.splice(i, 1);
+          // Gentle spawn particle effect
+          this.particles.emit(newTarget.position, new Color(0x00ff88), 10, 1.5, 0.8);
+        }
+      }
+    }
 
     // R2: Time freeze visual effect
     if (this.game.timeFreezeActive && !this.timeFreezeVisualActive) {
@@ -1884,6 +1923,17 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (tgt.motion !== 'static') {
       const a = this.game.achievements.find(a => a.id === 'moving-target');
       if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); }
+    }
+    // R3: Zen mode — schedule target respawn at a new location
+    if (this.game.mode === 'zen' && this.onZenRespawn) {
+      const rng = Math.random;
+      const fieldSize = 8;
+      const a = rng() * Math.PI * 2; const d = 2 + rng() * fieldSize;
+      this.game.zenRespawnTimers.push({
+        timer: 2 + rng() * 3,
+        config: { x: Math.cos(a) * d, y: (rng() - 0.5) * 4, z: -3 - Math.sin(a) * d, points: 100, motion: rng() < 0.3 ? 'orbit' : 'static' },
+      });
+      this.game.zenTargetsCycled++;
     }
     const now = this.game.elapsedTime;
     if (now - this.game.lastCollectTime < COMBO_WINDOW) this.game.combo++; else this.game.combo = 1;
@@ -2655,7 +2705,7 @@ async function main() {
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave, onZenRespawn: handleZenRespawn });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
     audio.startDrone();
@@ -2688,7 +2738,13 @@ async function main() {
       }
     }
     // Update physics system refs with new targets/obstacles
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave, onZenRespawn: handleZenRespawn });
+  }
+
+  // R3: Zen mode target respawn handler
+  function handleZenRespawn(cfg: LevelConfig['targets'][0]): Target {
+    const wellConfigs = game.currentLevel?.wells || [];
+    return createTarget(world.scene, cfg, wellConfigs as any);
   }
 
   // Multi-shot handler
@@ -2788,7 +2844,7 @@ async function main() {
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog, onSurvivalWave: handleSurvivalWave, onZenRespawn: handleZenRespawn });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
   uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
 
