@@ -29,6 +29,13 @@ const MAGNET_RANGE = 3.0;
 const MAGNET_FORCE = 2.0;
 const WORMHOLE_RADIUS = 0.4;
 const SHAKE_DECAY = 5.0;
+// R2: Shooting star constants
+const SHOOTING_STAR_INTERVAL_MIN = 3;
+const SHOOTING_STAR_INTERVAL_MAX = 8;
+const SHOOTING_STAR_SPEED = 40;
+const SHOOTING_STAR_LIFETIME = 1.5;
+// R2: Energy beam constants
+const ENERGY_BEAM_RANGE = 12;
 
 // ---- Types ----
 type GameMode = 'classic' | 'slingshot' | 'time-trial' | 'precision' | 'chaos' | 'zen' | 'survival' | 'daily';
@@ -37,13 +44,13 @@ type ThemeName = 'deep-space' | 'nebula' | 'solar' | 'ice' | 'void';
 type PowerUpType = 'shield' | 'magnet' | 'multi-shot' | 'time-freeze';
 type WellMotion = 'static' | 'orbit' | 'oscillate' | 'pulse-mass';
 
-interface ThemeColors { bg: number; fog: number; ambient: number; grid: number; }
+interface ThemeColors { bg: number; fog: number; ambient: number; grid: number; nebula: number; }
 const THEMES: Record<ThemeName, ThemeColors> = {
-  'deep-space': { bg: 0x020210, fog: 0x020210, ambient: 0x111133, grid: 0x1a1a4a },
-  'nebula': { bg: 0x0d0020, fog: 0x0d0020, ambient: 0x221133, grid: 0x331155 },
-  'solar': { bg: 0x100800, fog: 0x100800, ambient: 0x332200, grid: 0x443311 },
-  'ice': { bg: 0x001020, fog: 0x001020, ambient: 0x112233, grid: 0x224466 },
-  'void': { bg: 0x000800, fog: 0x000800, ambient: 0x002200, grid: 0x003300 },
+  'deep-space': { bg: 0x020210, fog: 0x020210, ambient: 0x111133, grid: 0x1a1a4a, nebula: 0x1122aa },
+  'nebula': { bg: 0x0d0020, fog: 0x0d0020, ambient: 0x221133, grid: 0x331155, nebula: 0x6622aa },
+  'solar': { bg: 0x100800, fog: 0x100800, ambient: 0x332200, grid: 0x443311, nebula: 0xaa4400 },
+  'ice': { bg: 0x001020, fog: 0x001020, ambient: 0x112233, grid: 0x224466, nebula: 0x2266aa },
+  'void': { bg: 0x000800, fog: 0x000800, ambient: 0x002200, grid: 0x003300, nebula: 0x006622 },
 };
 
 interface GravityWell {
@@ -55,7 +62,7 @@ interface GravityWell {
 interface Probe {
   mesh: Mesh; trailLine: Line; trailPositions: Vector3[]; position: Vector3; velocity: Vector3;
   alive: boolean; age: number; orbitCount: number; lastWellIdx: number; closestApproach: number;
-  shielded: boolean; targetsHitThisProbe: number;
+  shielded: boolean; targetsHitThisProbe: number; slingshotNotified: boolean;
 }
 interface Target { group: Group; position: Vector3; collected: boolean; pulsePhase: number; points: number; }
 interface PowerUp {
@@ -74,6 +81,10 @@ interface LevelConfig {
   probeLimit: number; timeLimit: number; name: string;
 }
 interface Achievement { id: string; name: string; desc: string; unlocked: boolean; }
+// R2: Shooting star data
+interface ShootingStar { line: Line; position: Vector3; velocity: Vector3; life: number; maxLife: number; active: boolean; }
+// R2: Energy beam data
+interface EnergyBeam { line: Line; wellA: number; wellB: number; phase: number; }
 
 // ---- Keyboard State (browser fallback) ----
 class KeyState {
@@ -107,6 +118,122 @@ class ScreenShake {
   }
 }
 
+// ---- R2: High Score Manager ----
+class HighScoreManager {
+  private data: Record<string, { score: number; stars: number; accuracy: number }> = {};
+
+  constructor() { this.load(); }
+
+  private key(mode: GameMode, level: number) { return `${mode}-${level}`; }
+
+  save() {
+    try { localStorage.setItem('neon-orbit-scores', JSON.stringify(this.data)); } catch (_e) { /* no-op */ }
+  }
+
+  load() {
+    try {
+      const raw = localStorage.getItem('neon-orbit-scores');
+      if (raw) this.data = JSON.parse(raw);
+    } catch (_e) { this.data = {}; }
+  }
+
+  record(mode: GameMode, level: number, score: number, stars: number, accuracy: number) {
+    const k = this.key(mode, level);
+    const prev = this.data[k];
+    if (!prev || score > prev.score) {
+      this.data[k] = { score, stars: Math.max(stars, prev?.stars ?? 0), accuracy: Math.max(accuracy, prev?.accuracy ?? 0) };
+      this.save();
+      return true; // new high score
+    }
+    if (stars > prev.stars || accuracy > prev.accuracy) {
+      this.data[k] = { score: prev.score, stars: Math.max(stars, prev.stars), accuracy: Math.max(accuracy, prev.accuracy) };
+      this.save();
+    }
+    return false;
+  }
+
+  get(mode: GameMode, level: number) { return this.data[this.key(mode, level)] ?? null; }
+
+  getMaxLevel(mode: GameMode): number {
+    let max = 0;
+    for (const k of Object.keys(this.data)) {
+      if (k.startsWith(mode + '-')) {
+        const lvl = parseInt(k.split('-').pop() || '0', 10);
+        if (lvl > max) max = lvl;
+      }
+    }
+    return max;
+  }
+
+  getTotalStars(mode: GameMode): number {
+    let total = 0;
+    for (const [k, v] of Object.entries(this.data)) {
+      if (k.startsWith(mode + '-')) total += v.stars;
+    }
+    return total;
+  }
+}
+
+// ---- R2: Shooting Star Manager ----
+class ShootingStarManager {
+  private stars: ShootingStar[] = [];
+  private nextSpawn = 0;
+  private scene: Object3D;
+  private themeColor: Color;
+
+  constructor(scene: Object3D, maxStars = 5) {
+    this.scene = scene;
+    this.themeColor = new Color(0x88aaff);
+    for (let i = 0; i < maxStars; i++) {
+      const geo = new BufferGeometry();
+      geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(6), 3));
+      const line = new Line(geo, new LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
+      line.frustumCulled = false;
+      scene.add(line);
+      this.stars.push({ line, position: new Vector3(), velocity: new Vector3(), life: 0, maxLife: 0, active: false });
+    }
+    this.nextSpawn = SHOOTING_STAR_INTERVAL_MIN + Math.random() * (SHOOTING_STAR_INTERVAL_MAX - SHOOTING_STAR_INTERVAL_MIN);
+  }
+
+  setThemeColor(color: number) { this.themeColor.set(color); }
+
+  update(delta: number) {
+    this.nextSpawn -= delta;
+    if (this.nextSpawn <= 0) {
+      this.spawn();
+      this.nextSpawn = SHOOTING_STAR_INTERVAL_MIN + Math.random() * (SHOOTING_STAR_INTERVAL_MAX - SHOOTING_STAR_INTERVAL_MIN);
+    }
+    for (const s of this.stars) {
+      if (!s.active) continue;
+      s.life -= delta;
+      if (s.life <= 0) { s.active = false; (s.line.material as LineBasicMaterial).opacity = 0; continue; }
+      const tail = s.position.clone();
+      s.position.addScaledVector(s.velocity, delta);
+      const pa = s.line.geometry.attributes.position.array as Float32Array;
+      pa[0] = s.position.x; pa[1] = s.position.y; pa[2] = s.position.z;
+      pa[3] = tail.x; pa[4] = tail.y; pa[5] = tail.z;
+      s.line.geometry.attributes.position.needsUpdate = true;
+      const t = s.life / s.maxLife;
+      (s.line.material as LineBasicMaterial).opacity = t * 0.7;
+      (s.line.material as LineBasicMaterial).color.lerpColors(this.themeColor, new Color(0xffffff), t);
+    }
+  }
+
+  private spawn() {
+    const s = this.stars.find(ss => !ss.active);
+    if (!s) return;
+    const angle = Math.random() * Math.PI * 2;
+    const elev = Math.random() * 0.6 + 0.2;
+    const r = 30 + Math.random() * 20;
+    s.position.set(Math.cos(angle) * r, elev * r * 0.5 + 5, Math.sin(angle) * r);
+    const dir = new Vector3(-Math.cos(angle + 0.3), -0.2 - Math.random() * 0.3, -Math.sin(angle + 0.3)).normalize();
+    s.velocity.copy(dir).multiplyScalar(SHOOTING_STAR_SPEED);
+    s.life = SHOOTING_STAR_LIFETIME * (0.5 + Math.random() * 0.5);
+    s.maxLife = s.life;
+    s.active = true;
+  }
+}
+
 // ---- Audio Manager ----
 class AudioManager {
   private ctx: AudioContext | null = null;
@@ -118,11 +245,13 @@ class AudioManager {
   private melodyGain: GainNode | null = null;
   private harmonyOsc: OscillatorNode | null = null;
   private harmonyGain: GainNode | null = null;
+  private padOsc: OscillatorNode | null = null;
+  private padGain: GainNode | null = null;
   private arpTimer = 0;
   private arpNoteIdx = 0;
   musicVolume = 0.8;
   sfxVolume = 1.0;
-  private musicIntensity = 0; // 0=menu, 1=calm play, 2=active, 3=intense
+  private musicIntensity = 0;
 
   private ensureCtx() {
     if (!this.ctx) {
@@ -137,41 +266,42 @@ class AudioManager {
 
   startDrone() {
     const ctx = this.ensureCtx(); if (this.droneOsc) return;
-    // Bass drone
     this.droneOsc = ctx.createOscillator(); this.droneOsc.type = 'sine'; this.droneOsc.frequency.value = 55;
     const g = ctx.createGain(); g.gain.value = 0.08; this.droneOsc.connect(g); g.connect(this.musicGain!); this.droneOsc.start();
-    // Sub-harmonic
     const h = ctx.createOscillator(); h.type = 'sine'; h.frequency.value = 82.5;
     const hg = ctx.createGain(); hg.gain.value = 0.04; h.connect(hg); hg.connect(this.musicGain!); h.start();
-    // Melody layer (starts silent, fades in during gameplay)
     this.melodyOsc = ctx.createOscillator(); this.melodyOsc.type = 'triangle'; this.melodyOsc.frequency.value = 220;
     this.melodyGain = ctx.createGain(); this.melodyGain.gain.value = 0;
     this.melodyOsc.connect(this.melodyGain); this.melodyGain.connect(this.musicGain!); this.melodyOsc.start();
-    // Harmony layer
     this.harmonyOsc = ctx.createOscillator(); this.harmonyOsc.type = 'sine'; this.harmonyOsc.frequency.value = 330;
     this.harmonyGain = ctx.createGain(); this.harmonyGain.gain.value = 0;
     this.harmonyOsc.connect(this.harmonyGain); this.harmonyGain.connect(this.musicGain!); this.harmonyOsc.start();
+    // R2: Pad layer — warm background chords
+    this.padOsc = ctx.createOscillator(); this.padOsc.type = 'sine'; this.padOsc.frequency.value = 165;
+    this.padGain = ctx.createGain(); this.padGain.gain.value = 0;
+    this.padOsc.connect(this.padGain); this.padGain.connect(this.musicGain!); this.padOsc.start();
   }
 
   setIntensity(level: number) { this.musicIntensity = level; }
 
   updateMusic(delta: number) {
     if (!this.melodyGain || !this.harmonyGain || !this.melodyOsc || !this.harmonyOsc || !this.ctx) return;
-    // Smoothly interpolate melody/harmony volumes
     const melTarget = this.musicIntensity >= 1 ? 0.04 : 0;
     const harTarget = this.musicIntensity >= 2 ? 0.03 : 0;
+    const padTarget = this.musicIntensity >= 1 ? 0.02 : 0;
     this.melodyGain.gain.value += (melTarget - this.melodyGain.gain.value) * delta * 2;
     this.harmonyGain.gain.value += (harTarget - this.harmonyGain.gain.value) * delta * 2;
-    // Arpeggio-like frequency changes
+    if (this.padGain) this.padGain.gain.value += (padTarget - this.padGain.gain.value) * delta * 1.5;
     this.arpTimer += delta;
     const arpSpeed = this.musicIntensity >= 3 ? 0.25 : this.musicIntensity >= 2 ? 0.5 : 1.0;
     if (this.arpTimer > arpSpeed) {
       this.arpTimer = 0;
-      const scale = [220, 261.6, 293.7, 349.2, 392, 440, 523.3]; // A minor pentatonic-ish
+      const scale = [220, 261.6, 293.7, 349.2, 392, 440, 523.3];
       this.arpNoteIdx = (this.arpNoteIdx + 1) % scale.length;
       const t = this.ctx.currentTime;
       this.melodyOsc.frequency.setTargetAtTime(scale[this.arpNoteIdx], t, 0.05);
       this.harmonyOsc.frequency.setTargetAtTime(scale[(this.arpNoteIdx + 2) % scale.length] * 1.5, t, 0.05);
+      if (this.padOsc) this.padOsc.frequency.setTargetAtTime(scale[(this.arpNoteIdx + 4) % scale.length] * 0.5, t, 0.15);
     }
   }
 
@@ -233,7 +363,6 @@ class AudioManager {
     o.frequency.setValueAtTime(800, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.4);
     const g = ctx.createGain(); g.gain.setValueAtTime(0.12, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
     o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.4);
-    // Echo
     const o2 = ctx.createOscillator(); o2.type = 'sine';
     o2.frequency.setValueAtTime(600, ctx.currentTime + 0.15); o2.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.5);
     const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.06, ctx.currentTime + 0.15); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
@@ -247,10 +376,28 @@ class AudioManager {
     const src = ctx.createBufferSource(); src.buffer = buf;
     const g = ctx.createGain(); g.gain.setValueAtTime(0.15, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
     src.connect(g); g.connect(this.sfxGain!); src.start();
-    // Crystal tone
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 1200;
     const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.08, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
     o.connect(g2); g2.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.2);
+  }
+
+  // R2: Slingshot sound
+  playSlingshot() {
+    const ctx = this.ensureCtx();
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(300, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.25);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.08, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.3);
+  }
+
+  // R2: High score sound
+  playHighScore() {
+    const ctx = this.ensureCtx();
+    [784, 988, 1175, 1319, 1568].forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.12); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.6);
+      o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.12); o.stop(ctx.currentTime + i * 0.12 + 0.6);
+    });
   }
 
   setMusicVolume(v: number) { this.musicVolume = v; if (this.musicGain) this.musicGain.gain.value = v * 0.3; }
@@ -269,7 +416,7 @@ class ParticlePool {
   private activeCount = 0;
   private maxP: number;
 
-  constructor(scene: Object3D, maxP = 300) {
+  constructor(scene: Object3D, maxP = 500) {
     this.maxP = maxP; this.positions = new Float32Array(maxP * 3); this.colors = new Float32Array(maxP * 4);
     for (let i = 0; i < maxP; i++) { this.velocities.push(new Vector3()); this.lifetimes.push(0); this.maxLifetimes.push(0); }
     this.geometry = new BufferGeometry();
@@ -304,6 +451,20 @@ class ParticlePool {
     }
   }
 
+  // R2: Directional burst (for slingshots)
+  emitDirectional(pos: Vector3, dir: Vector3, color: Color, count: number, spread = 0.3, speed = 3, lifetime = 0.5) {
+    for (let i = 0; i < count; i++) {
+      const idx = this.findFree(); if (idx < 0) break;
+      this.positions[idx * 3] = pos.x; this.positions[idx * 3 + 1] = pos.y; this.positions[idx * 3 + 2] = pos.z;
+      this.velocities[idx].copy(dir).multiplyScalar(speed).add(
+        new Vector3((Math.random() - 0.5) * spread * speed, (Math.random() - 0.5) * spread * speed, (Math.random() - 0.5) * spread * speed)
+      );
+      this.colors[idx * 4] = color.r; this.colors[idx * 4 + 1] = color.g; this.colors[idx * 4 + 2] = color.b; this.colors[idx * 4 + 3] = 1;
+      this.lifetimes[idx] = lifetime; this.maxLifetimes[idx] = lifetime;
+      this.activeCount = Math.max(this.activeCount, idx + 1);
+    }
+  }
+
   update(delta: number) {
     let ma = 0;
     for (let i = 0; i < this.activeCount; i++) {
@@ -318,6 +479,7 @@ class ParticlePool {
 
   private findFree(): number { for (let i = 0; i < this.maxP; i++) { if (this.lifetimes[i] <= 0) return i; } return -1; }
 }
+
 
 // ---- Level Generator ----
 function seededRandom(seed: number): () => number { let s = seed; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
@@ -339,19 +501,15 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     default: wc = 3; tc = 5; pl = 8; tl = 0;
   }
 
-  // Generate wells with motion types
   const wells: LevelConfig['wells'] = [];
   const motions: WellMotion[] = ['static', 'orbit', 'oscillate', 'pulse-mass'];
   for (let i = 0; i < wc; i++) {
     const angle = (i / wc) * Math.PI * 2 + rng() * 0.5;
     const dist = 3 + rng() * fieldSize * 0.5;
-    // Higher levels introduce more moving wells
     let motion: WellMotion = 'static';
-    if (levelNum >= 3 && rng() < 0.3 + levelNum * 0.03) {
-      motion = motions[1 + Math.floor(rng() * 3)];
-    }
-    if (mode === 'chaos') motion = motions[Math.floor(rng() * 4)]; // chaos gets all types
-    if (mode === 'zen') motion = rng() < 0.5 ? 'orbit' : 'oscillate'; // zen has gentle motion
+    if (levelNum >= 3 && rng() < 0.3 + levelNum * 0.03) motion = motions[1 + Math.floor(rng() * 3)];
+    if (mode === 'chaos') motion = motions[Math.floor(rng() * 4)];
+    if (mode === 'zen') motion = rng() < 0.5 ? 'orbit' : 'oscillate';
     wells.push({
       x: Math.cos(angle) * dist, y: (rng() - 0.5) * 3, z: -3 - Math.sin(angle) * dist,
       mass: 1 + rng() * 3, radius: 0.3 + rng() * 0.5, color: PLANET_COLORS[i % PLANET_COLORS.length],
@@ -359,7 +517,6 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     });
   }
 
-  // Generate targets
   const targets: LevelConfig['targets'] = [];
   for (let i = 0; i < tc; i++) {
     let x: number, y: number, z: number, at = 0;
@@ -368,7 +525,6 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     targets.push({ x, y, z, points: 100 + Math.floor(rng() * 5) * 50 });
   }
 
-  // Generate power-ups (appear from level 2+, more in later levels)
   const powerUps: LevelConfig['powerUps'] = [];
   const puTypes: PowerUpType[] = ['shield', 'magnet', 'multi-shot', 'time-freeze'];
   if (levelNum >= 2 && mode !== 'zen') {
@@ -379,7 +535,6 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     }
   }
 
-  // Generate wormholes (appear from level 5+)
   const wormholes: LevelConfig['wormholes'] = [];
   if (levelNum >= 5 && mode !== 'zen' && mode !== 'precision' && rng() < 0.5 + levelNum * 0.02) {
     const a1 = rng() * Math.PI * 2; const d1 = 3 + rng() * fieldSize * 0.4;
@@ -403,19 +558,22 @@ class GameManager {
   slowMo = false; timeScale = 1; charging = false; chargeAmount = 0;
   theme: ThemeName = 'deep-space'; showTrajectory = true;
   trailLen: 'short' | 'medium' | 'long' = 'long';
-  // Power-up state
   activePowerUp: PowerUpType | null = null; powerUpTimer = 0;
   shieldActive = false; magnetActive = false; multiShotActive = false; timeFreezeActive = false;
   totalPowerUpsCollected = 0;
-  // Persistent stats
   totalScore = 0; gamesPlayed = 0; totalProbesLaunched = 0; totalTargetsCollected = 0;
   allTimeBestCombo = 0; planetsCrashedInto = 0; perfectLevels = 0; longestOrbit = 0; totalPlayTime = 0;
   dailyStreak = 0; xp = 0; playerLevel = 1; xpToNext = 100;
   wormholeUses = 0;
-  // Level data
   currentLevel: LevelConfig | null = null; wells: GravityWell[] = []; probes: Probe[] = [];
   targets: Target[] = []; powerUps: PowerUp[] = []; wormholes: WormholePortal[] = [];
-  // Achievements
+  // R2: Camera follow
+  cameraFollow = false; cameraFollowTarget: Probe | null = null;
+  // R2: New high score flag
+  newHighScore = false;
+  // R2: Slingshot notification
+  slingshotNotif = false; slingshotNotifTimer = 0;
+
   achievements: Achievement[] = [
     { id: 'first-contact', name: 'First Contact', desc: 'Collect your first target', unlocked: false },
     { id: 'orbital-5', name: 'Orbital Mechanic', desc: 'Complete 5 levels', unlocked: false },
@@ -457,7 +615,6 @@ class GameManager {
     { id: 'survive-20', name: 'Iron Will', desc: 'Reach wave 20 in Survival', unlocked: false },
     { id: 'streak-14', name: 'Dedicated', desc: '14-day daily streak', unlocked: false },
     { id: 'score-100k', name: 'Legend', desc: 'Reach 100,000 total score', unlocked: false },
-    // New achievements for power-ups and wormholes
     { id: 'powerup-first', name: 'Powered Up', desc: 'Collect your first power-up', unlocked: false },
     { id: 'powerup-10', name: 'Power Hoarder', desc: 'Collect 10 power-ups total', unlocked: false },
     { id: 'shield-save', name: 'Close Call', desc: 'Shield saves you from a crash', unlocked: false },
@@ -500,7 +657,6 @@ class GameManager {
     if (this.activePowerUp === 'magnet') this.magnetActive = false;
     if (this.activePowerUp === 'multi-shot') this.multiShotActive = false;
     if (this.activePowerUp === 'time-freeze') this.timeFreezeActive = false;
-    // Shield stays until used
     if (this.activePowerUp !== 'shield') this.activePowerUp = null;
     this.powerUpTimer = 0;
   }
@@ -529,7 +685,6 @@ class GameManager {
     ck('lvl-10', this.level >= 10); ck('lvl-25', this.level >= 25);
     ck('slowmo-100', this.slowMoCount >= 100); ck('survive-20', this.mode === 'survival' && this.level >= 20);
     ck('streak-14', this.dailyStreak >= 14); ck('score-100k', this.totalScore >= 100000);
-    // New achievements
     ck('powerup-first', this.totalPowerUpsCollected >= 1); ck('powerup-10', this.totalPowerUpsCollected >= 10);
     ck('wormhole-1', this.wormholeUses >= 1); ck('wormhole-10', this.wormholeUses >= 10);
     ck('magnet-3', this.magnetCollects >= 3); ck('freeze-collect', this.freezeCollects >= 3);
@@ -538,7 +693,7 @@ class GameManager {
 
 
 // ---- Scene Builders ----
-function createStarField(scene: Object3D, count = 1000): { points: Points; twinkle: (time: number) => void } {
+function createStarField(scene: Object3D, count = 1200): { points: Points; twinkle: (time: number) => void } {
   const pos = new Float32Array(count * 3); const col = new Float32Array(count * 3);
   const baseBright = new Float32Array(count); const twinkleSpeed = new Float32Array(count);
   const twinklePhase = new Float32Array(count);
@@ -547,7 +702,9 @@ function createStarField(scene: Object3D, count = 1000): { points: Points; twink
     pos[i * 3] = r * Math.sin(phi) * Math.cos(theta); pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta); pos[i * 3 + 2] = r * Math.cos(phi);
     const b = 0.3 + Math.random() * 0.7;
     baseBright[i] = b; twinkleSpeed[i] = 0.5 + Math.random() * 3; twinklePhase[i] = Math.random() * Math.PI * 2;
-    col[i * 3] = b; col[i * 3 + 1] = b; col[i * 3 + 2] = b * (0.8 + Math.random() * 0.4);
+    // R2: Color variation — some stars are warm, some cool
+    const warmth = Math.random();
+    col[i * 3] = b * (warmth > 0.7 ? 1.2 : 0.9); col[i * 3 + 1] = b; col[i * 3 + 2] = b * (warmth < 0.3 ? 1.2 : 0.9);
   }
   const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new Float32BufferAttribute(col, 3));
   const mat = new PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, sizeAttenuation: true });
@@ -559,11 +716,89 @@ function createStarField(scene: Object3D, count = 1000): { points: Points; twink
     for (let i = 0; i < count; i++) {
       const t = Math.sin(time * twinkleSpeed[i] + twinklePhase[i]) * 0.3 + 0.7;
       const b = baseBright[i] * t;
-      arr[i * 3] = b; arr[i * 3 + 1] = b; arr[i * 3 + 2] = b * (0.8 + Math.random() * 0.05);
+      arr[i * 3] *= t; arr[i * 3 + 1] = b; arr[i * 3 + 2] *= t;
     }
     colAttr.needsUpdate = true;
   };
   return { points: stars, twinkle };
+}
+
+// R2: Nebula clouds — large semi-transparent spheres in the background
+function createNebulaClouds(scene: Object3D, color: number, count = 6): Mesh[] {
+  const clouds: Mesh[] = [];
+  const baseColor = new Color(color);
+  for (let i = 0; i < count; i++) {
+    const size = 8 + Math.random() * 15;
+    const geo = new SphereGeometry(size, 16, 16);
+    const mat = new MeshBasicMaterial({
+      color: baseColor.clone().offsetHSL(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.1),
+      transparent: true, opacity: 0.03 + Math.random() * 0.02,
+      blending: AdditiveBlending, depthWrite: false,
+    });
+    const mesh = new Mesh(geo, mat);
+    const angle = Math.random() * Math.PI * 2;
+    const elev = (Math.random() - 0.5) * 20;
+    const dist = 25 + Math.random() * 35;
+    mesh.position.set(Math.cos(angle) * dist, elev, Math.sin(angle) * dist);
+    scene.add(mesh);
+    clouds.push(mesh);
+  }
+  return clouds;
+}
+
+// R2: Ambient dust — slowly drifting particles in the play area
+function createAmbientDust(scene: Object3D, count = 200): { points: Points; update: (delta: number) => void } {
+  const positions = new Float32Array(count * 3);
+  const velocities = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 30;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 15;
+    positions[i * 3 + 2] = -15 + (Math.random() - 0.5) * 30;
+    velocities[i * 3] = (Math.random() - 0.5) * 0.2;
+    velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  const mat = new PointsMaterial({ size: 0.03, color: 0x446688, transparent: true, opacity: 0.3, blending: AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+  const pts = new Points(geo, mat); pts.frustumCulled = false; scene.add(pts);
+
+  const update = (delta: number) => {
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] += velocities[i * 3] * delta;
+      positions[i * 3 + 1] += velocities[i * 3 + 1] * delta;
+      positions[i * 3 + 2] += velocities[i * 3 + 2] * delta;
+      // Wrap around
+      if (positions[i * 3] > 15) positions[i * 3] = -15;
+      if (positions[i * 3] < -15) positions[i * 3] = 15;
+      if (positions[i * 3 + 1] > 7.5) positions[i * 3 + 1] = -7.5;
+      if (positions[i * 3 + 1] < -7.5) positions[i * 3 + 1] = 7.5;
+      if (positions[i * 3 + 2] > 0) positions[i * 3 + 2] = -30;
+      if (positions[i * 3 + 2] < -30) positions[i * 3 + 2] = 0;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
+  return { points: pts, update };
+}
+
+// R2: Energy beams between nearby gravity wells
+function createEnergyBeams(scene: Object3D, wells: GravityWell[]): EnergyBeam[] {
+  const beams: EnergyBeam[] = [];
+  for (let i = 0; i < wells.length; i++) {
+    for (let j = i + 1; j < wells.length; j++) {
+      const dist = wells[i].position.distanceTo(wells[j].position);
+      if (dist < ENERGY_BEAM_RANGE) {
+        const geo = new BufferGeometry();
+        geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(6), 3));
+        const avgColor = new Color(wells[i].color).lerp(new Color(wells[j].color), 0.5);
+        const line = new Line(geo, new LineBasicMaterial({ color: avgColor, transparent: true, opacity: 0.08, blending: AdditiveBlending }));
+        line.frustumCulled = false;
+        scene.add(line);
+        beams.push({ line, wellA: i, wellB: j, phase: Math.random() * Math.PI * 2 });
+      }
+    }
+  }
+  return beams;
 }
 
 function createGridFloor(scene: Object3D, color: number): Group {
@@ -582,11 +817,9 @@ function createGravityWell(scene: Object3D, cfg: LevelConfig['wells'][0]): Gravi
   group.add(core);
   const glowMesh = new Mesh(new SphereGeometry(cfg.radius * 1.3, 24, 24), new MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.15, blending: AdditiveBlending, depthWrite: false }));
   group.add(glowMesh);
-  // Motion indicator ring - thicker for moving wells
   const ringThickness = cfg.motion !== 'static' ? 0.04 : 0.02;
   const ringMesh = new Mesh(new TorusGeometry(cfg.radius * 2, ringThickness, 8, 64), new MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: cfg.motion !== 'static' ? 0.5 : 0.3 }));
   ringMesh.rotation.x = Math.PI * 0.5; group.add(ringMesh);
-  // Second ring for orbit-motion wells
   if (cfg.motion === 'orbit') {
     const orbitRing = new Mesh(new TorusGeometry(cfg.orbitRadius || 2, 0.01, 8, 64), new MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.15 }));
     orbitRing.rotation.x = Math.PI * 0.5; group.add(orbitRing);
@@ -638,10 +871,8 @@ function createWormhole(scene: Object3D, cfg: LevelConfig['wormholes'][0]): Worm
     const group = new Group(); group.position.set(x, y, z);
     const ring = new Mesh(new TorusGeometry(WORMHOLE_RADIUS, 0.03, 16, 32), new MeshBasicMaterial({ color, transparent: true, opacity: 0.7, blending: AdditiveBlending }));
     group.add(ring);
-    // Inner glow disc
     const disc = new Mesh(new RingGeometry(0, WORMHOLE_RADIUS * 0.8, 24), new MeshBasicMaterial({ color, transparent: true, opacity: 0.15, side: DoubleSide, blending: AdditiveBlending, depthWrite: false }));
     group.add(disc);
-    // Outer field rings
     for (let i = 1; i <= 2; i++) {
       const outer = new Mesh(new TorusGeometry(WORMHOLE_RADIUS + i * 0.15, 0.01, 8, 32), new MeshBasicMaterial({ color, transparent: true, opacity: 0.2 / i, blending: AdditiveBlending }));
       group.add(outer);
@@ -665,7 +896,7 @@ function createProbe(scene: Object3D): Probe {
   const tg = new BufferGeometry(); tg.setAttribute('position', new Float32BufferAttribute(new Float32Array(TRAIL_LENGTH * 3), 3));
   const trailLine = new Line(tg, new LineBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 }));
   trailLine.visible = false; trailLine.frustumCulled = false; scene.add(trailLine);
-  return { mesh, trailLine, trailPositions, position: new Vector3(), velocity: new Vector3(), alive: false, age: 0, orbitCount: 0, lastWellIdx: -1, closestApproach: Infinity, shielded: false, targetsHitThisProbe: 0 };
+  return { mesh, trailLine, trailPositions, position: new Vector3(), velocity: new Vector3(), alive: false, age: 0, orbitCount: 0, lastWellIdx: -1, closestApproach: Infinity, shielded: false, targetsHitThisProbe: 0, slingshotNotified: false };
 }
 
 function createPredictionLine(scene: Object3D): Line {
@@ -682,6 +913,7 @@ function createLaunchIndicator(scene: Object3D): Group {
   tip.rotation.x = Math.PI / 2; tip.position.z = -0.55; g.add(tip);
   g.visible = false; scene.add(g); return g;
 }
+
 
 
 // ---- Gravity ----
@@ -712,31 +944,43 @@ function simulateTrajectory(startPos: Vector3, startVel: Vector3, wells: Gravity
 // ---- Orbit Physics System ----
 class OrbitPhysicsSystem extends createSystem({}) {
   private game!: GameManager; private audio!: AudioManager; private particles!: ParticlePool;
-  private shake!: ScreenShake;
+  private shake!: ScreenShake; private shootingStars!: ShootingStarManager;
   private probes: Probe[] = []; private wells: GravityWell[] = [];
   private targets: Target[] = []; private powerUps: PowerUp[] = []; private wormholes: WormholePortal[] = [];
+  private energyBeams: EnergyBeam[] = [];
+  private dustUpdate: ((delta: number) => void) | null = null;
   private accel = new Vector3();
   private starTwinkle: ((time: number) => void) | null = null;
   private globalTime = 0;
 
   setRefs(refs: {
     game: GameManager; audio: AudioManager; particles: ParticlePool; shake: ScreenShake;
+    shootingStars: ShootingStarManager;
     probes: Probe[]; wells: GravityWell[]; targets: Target[];
     powerUps: PowerUp[]; wormholes: WormholePortal[];
+    energyBeams: EnergyBeam[];
+    dustUpdate?: (delta: number) => void;
     starTwinkle?: (time: number) => void;
   }) {
     this.game = refs.game; this.audio = refs.audio; this.particles = refs.particles;
-    this.shake = refs.shake; this.probes = refs.probes; this.wells = refs.wells;
+    this.shake = refs.shake; this.shootingStars = refs.shootingStars;
+    this.probes = refs.probes; this.wells = refs.wells;
     this.targets = refs.targets; this.powerUps = refs.powerUps; this.wormholes = refs.wormholes;
+    this.energyBeams = refs.energyBeams;
+    if (refs.dustUpdate) this.dustUpdate = refs.dustUpdate;
     if (refs.starTwinkle) this.starTwinkle = refs.starTwinkle;
   }
 
   update(delta: number, _time: number) {
     this.globalTime += delta;
-    // Star twinkling (always runs)
+    // Star twinkling
     if (this.starTwinkle && Math.floor(this.globalTime * 4) !== Math.floor((this.globalTime - delta) * 4)) {
       this.starTwinkle(this.globalTime);
     }
+    // R2: Shooting stars
+    this.shootingStars.update(delta);
+    // R2: Ambient dust
+    if (this.dustUpdate) this.dustUpdate(delta);
     // Screen shake
     this.shake.update(delta, this.camera);
     // Music reactivity
@@ -749,6 +993,24 @@ class OrbitPhysicsSystem extends createSystem({}) {
     }
     this.audio.updateMusic(delta);
 
+    // R2: Energy beam animation
+    for (const beam of this.energyBeams) {
+      beam.phase += delta * 2;
+      const wA = this.wells[beam.wellA]; const wB = this.wells[beam.wellB];
+      if (!wA || !wB) continue;
+      const pa = beam.line.geometry.attributes.position.array as Float32Array;
+      pa[0] = wA.position.x; pa[1] = wA.position.y; pa[2] = wA.position.z;
+      pa[3] = wB.position.x; pa[4] = wB.position.y; pa[5] = wB.position.z;
+      beam.line.geometry.attributes.position.needsUpdate = true;
+      (beam.line.material as LineBasicMaterial).opacity = 0.04 + Math.sin(beam.phase) * 0.03;
+    }
+
+    // R2: Slingshot notification timer
+    if (this.game.slingshotNotif) {
+      this.game.slingshotNotifTimer -= delta;
+      if (this.game.slingshotNotifTimer <= 0) this.game.slingshotNotif = false;
+    }
+
     if (this.game.state !== 'playing') return;
     const dt = delta * this.game.timeScale;
     this.game.elapsedTime += dt; this.game.totalPlayTime += delta;
@@ -759,12 +1021,12 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (this.game.powerUpTimer <= 0) this.game.deactivatePowerUp();
     }
 
-    // Time limit check
+    // Time limit
     if (this.game.currentLevel && this.game.currentLevel.timeLimit > 0 && this.game.elapsedTime >= this.game.currentLevel.timeLimit) { this.endLevel(); return; }
 
     // Update moving wells
     for (const w of this.wells) {
-      if (this.game.timeFreezeActive && w.motion !== 'static') continue; // Time-freeze stops well movement
+      if (this.game.timeFreezeActive && w.motion !== 'static') continue;
       switch (w.motion) {
         case 'orbit':
           w.orbitAngle += w.orbitSpeed * dt;
@@ -780,7 +1042,6 @@ class OrbitPhysicsSystem extends createSystem({}) {
           break;
         case 'pulse-mass':
           w.mass = w.baseMass * (1 + Math.sin(this.globalTime * 2 + w.pulsePhase) * 0.4);
-          // Visual feedback for pulsing mass
           const scale = 0.85 + (w.mass / w.baseMass) * 0.15;
           w.group.scale.setScalar(scale);
           break;
@@ -793,7 +1054,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
       pr.age += dt;
       computeGravity(pr.position, this.wells, this.accel);
 
-      // Magnet: attract toward nearest uncollected target
+      // Magnet
       if (this.game.magnetActive) {
         let nearest: Target | null = null; let nearDist = MAGNET_RANGE;
         for (const tgt of this.targets) {
@@ -823,20 +1084,29 @@ class OrbitPhysicsSystem extends createSystem({}) {
       for (let wi = 0; wi < this.wells.length; wi++) {
         const dist = pr.position.distanceTo(this.wells[wi].position);
         if (dist < pr.closestApproach) pr.closestApproach = dist;
-        if (dist < this.wells[wi].radius * 4 && wi !== pr.lastWellIdx) { if (pr.lastWellIdx >= 0) pr.orbitCount++; pr.lastWellIdx = wi; }
+        if (dist < this.wells[wi].radius * 4 && wi !== pr.lastWellIdx) {
+          if (pr.lastWellIdx >= 0) pr.orbitCount++;
+          pr.lastWellIdx = wi;
+          // R2: Slingshot detection — gravity assist feedback
+          if (pr.orbitCount >= 1 && !pr.slingshotNotified) {
+            pr.slingshotNotified = true;
+            this.game.slingshotNotif = true; this.game.slingshotNotifTimer = 1.5;
+            this.audio.playSlingshot();
+            const dir = pr.velocity.clone().normalize();
+            this.particles.emitDirectional(pr.position, dir, new Color(0xffaa44), 12, 0.4, 4, 0.4);
+          }
+        }
       }
       // Collision with wells
       let crashed = false;
       for (const w of this.wells) {
         if (pr.position.distanceTo(w.position) < w.radius) {
           if (pr.shielded) {
-            // Shield absorbs the crash
             pr.shielded = false; this.game.shieldActive = false;
             if (this.game.activePowerUp === 'shield') { this.game.activePowerUp = null; this.game.powerUpTimer = 0; }
             this.audio.playShieldBreak();
             this.particles.emitRing(pr.position, new Color(0x44aaff), 20, 0.5, 0.8);
             this.shake.trigger(0.3);
-            // Reflect velocity
             const normal = new Vector3().subVectors(pr.position, w.position).normalize();
             pr.velocity.reflect(normal).multiplyScalar(0.7);
             pr.position.addScaledVector(normal, w.radius + 0.1 - pr.position.distanceTo(w.position));
@@ -851,14 +1121,14 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (pr.position.length() > MAX_DISTANCE) crashed = true;
       if (crashed) { this.killProbe(pr); continue; }
 
-      // Wormhole teleportation
+      // Wormhole
       for (const wh of this.wormholes) {
         if (!wh.active) continue;
         const dA = pr.position.distanceTo(wh.posA);
         const dB = pr.position.distanceTo(wh.posB);
         if (dA < WORMHOLE_RADIUS) {
           pr.position.copy(wh.posB).addScaledVector(pr.velocity.clone().normalize(), WORMHOLE_RADIUS + 0.1);
-          pr.velocity.multiplyScalar(1.2); // Speed boost through wormhole
+          pr.velocity.multiplyScalar(1.2);
           this.audio.playWormhole(); this.particles.emitRing(wh.posA, new Color(0x8844ff), 16, WORMHOLE_RADIUS);
           this.particles.emitRing(wh.posB, new Color(0xff8844), 16, WORMHOLE_RADIUS);
           this.game.wormholeUses++; wh.active = false; setTimeout(() => { wh.active = true; }, 1500);
@@ -890,6 +1160,17 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (pr.orbitCount >= 10) { const a = this.game.achievements.find(a => a.id === 'orbit-10'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
       if (pr.targetsHitThisProbe >= 3) { const a = this.game.achievements.find(a => a.id === 'efficient-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
     }
+
+    // R2: Update camera follow target
+    if (this.game.cameraFollow) {
+      const alive = this.probes.filter(p => p.alive);
+      if (alive.length > 0) {
+        this.game.cameraFollowTarget = alive[alive.length - 1]; // follow most recent
+      } else {
+        this.game.cameraFollowTarget = null;
+      }
+    }
+
     this.game.checkAchievements();
     this.particles.update(dt);
     // Animate wells
@@ -932,7 +1213,13 @@ class OrbitPhysicsSystem extends createSystem({}) {
     if (this.game.combo > this.game.bestCombo) this.game.bestCombo = this.game.combo;
     if (this.game.combo > this.game.allTimeBestCombo) this.game.allTimeBestCombo = this.game.combo;
     this.game.score += tgt.points * this.game.combo; this.game.totalScore += tgt.points * this.game.combo;
-    this.audio.playCollect(this.game.combo); this.particles.emit(tgt.position, new Color(0x00ff88), 25, 4, 1.0);
+    this.audio.playCollect(this.game.combo);
+    // R2: Bigger particle burst for combos
+    const burstCount = 25 + this.game.combo * 5;
+    this.particles.emit(tgt.position, new Color(0x00ff88), burstCount, 4 + this.game.combo * 0.5, 1.0);
+    if (this.game.combo >= 3) {
+      this.particles.emitRing(tgt.position, new Color(0xffaa00), 16, 0.5, 0.6);
+    }
     if (this.game.magnetActive) this.game.magnetCollects++;
     if (this.game.timeFreezeActive) this.game.freezeCollects++;
     if (pr.orbitCount >= 3) { const a = this.game.achievements.find(a => a.id === 'slingshot-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
@@ -953,7 +1240,10 @@ class OrbitPhysicsSystem extends createSystem({}) {
     this.game.checkAchievements();
   }
 
-  private killProbe(pr: Probe) { pr.alive = false; pr.mesh.visible = false; pr.trailLine.visible = false; }
+  private killProbe(pr: Probe) {
+    pr.alive = false; pr.mesh.visible = false; pr.trailLine.visible = false;
+    if (this.game.cameraFollowTarget === pr) this.game.cameraFollowTarget = null;
+  }
 
   private endLevel() {
     if (this.game.state !== 'playing') return;
@@ -965,8 +1255,11 @@ class OrbitPhysicsSystem extends createSystem({}) {
       this.game.addXP(50 + stars * 25 + Math.floor(this.game.score / 10)); this.audio.playSuccess(); this.game.state = 'level-complete';
     } else { this.audio.playFail(); this.game.state = 'game-over'; }
     this.game.gamesPlayed++; this.game.modesPlayed.add(this.game.mode); this.game.checkAchievements();
+    // R2: Camera follow off when level ends
+    this.game.cameraFollow = false; this.game.cameraFollowTarget = null;
   }
 }
+
 
 
 // ---- Input System ----
@@ -977,6 +1270,9 @@ class InputControlSystem extends createSystem({}) {
   private launchDir = new Vector3(0, 0, -1); private aimOrigin = new Vector3(0, 1.5, 0);
   private chargeTick = 0;
   private onMultiShot!: () => void;
+  // R2: Camera follow
+  private baseCamPos = new Vector3(0, 1.7, 0);
+  private followLerp = new Vector3(0, 1.7, 0);
 
   setRefs(refs: { game: GameManager; audio: AudioManager; keys: KeyState; probes: Probe[]; wells: GravityWell[]; predLine: Line; launchInd: Group; onMultiShot: () => void }) {
     this.game = refs.game; this.audio = refs.audio; this.keys = refs.keys;
@@ -988,6 +1284,7 @@ class InputControlSystem extends createSystem({}) {
     if (this.game.state !== 'playing') { this.predLine.visible = false; this.launchInd.visible = false; this.keys.endFrame(); return; }
     const right = this.input.gamepads.right;
     let tDown = false, tUp = false, tHeld = false, slowToggle = false, pauseP = false;
+    let camToggle = false;
     if (right) {
       const ray = this.player.raySpaces.right;
       const fwd = new Vector3(0, 0, -1).applyQuaternion(ray.quaternion);
@@ -997,7 +1294,12 @@ class InputControlSystem extends createSystem({}) {
       pauseP = !!right.getButtonDown(InputComponent.B_Button);
     }
     const left = this.input.gamepads.left;
-    if (left) { if (left.getButtonDown(InputComponent.Squeeze)) slowToggle = true; if (left.getButtonDown(InputComponent.Y_Button)) pauseP = true; }
+    if (left) {
+      if (left.getButtonDown(InputComponent.Squeeze)) slowToggle = true;
+      if (left.getButtonDown(InputComponent.Y_Button)) pauseP = true;
+      // R2: Camera follow toggle on left thumbstick press
+      if (left.getButtonDown(InputComponent.Thumbstick)) camToggle = true;
+    }
     // Keyboard
     if (!right) {
       const camFwd = new Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -1006,7 +1308,31 @@ class InputControlSystem extends createSystem({}) {
     if (this.keys.isDown('Space')) tDown = true; if (this.keys.isUp('Space')) tUp = true; if (this.keys.isPressed('Space')) tHeld = true;
     if (this.keys.isDown('ShiftLeft') || this.keys.isDown('ShiftRight')) slowToggle = true;
     if (this.keys.isDown('Escape') || this.keys.isDown('KeyP')) pauseP = true;
+    // R2: Camera follow toggle — F key
+    if (this.keys.isDown('KeyF')) camToggle = true;
     this.keys.endFrame();
+
+    // R2: Camera follow toggle
+    if (camToggle) {
+      this.game.cameraFollow = !this.game.cameraFollow;
+      if (!this.game.cameraFollow) {
+        this.game.cameraFollowTarget = null;
+        // Snap camera back
+        this.camera.position.copy(this.baseCamPos);
+      }
+    }
+
+    // R2: Smooth camera follow
+    if (this.game.cameraFollow && this.game.cameraFollowTarget && !right) {
+      const target = this.game.cameraFollowTarget;
+      const followPos = target.position.clone().add(new Vector3(0, 0.5, 2));
+      this.followLerp.lerp(followPos, delta * 3);
+      this.camera.position.copy(this.followLerp);
+      this.camera.lookAt(target.position);
+    } else if (!this.game.cameraFollow && !right) {
+      this.followLerp.copy(this.baseCamPos);
+    }
+
     if (pauseP) { this.game.state = 'paused'; return; }
     if (slowToggle) { this.game.slowMo = !this.game.slowMo; this.game.timeScale = this.game.slowMo ? SLOW_MO_FACTOR : 1; if (this.game.slowMo) this.game.slowMoCount++; }
     if (tDown && !this.game.charging && this.game.probesRemaining > 0) { this.game.charging = true; this.game.chargeAmount = 0; }
@@ -1017,7 +1343,6 @@ class InputControlSystem extends createSystem({}) {
     if (this.game.charging && tUp) {
       this.game.charging = false;
       this.launchProbe();
-      // Multi-shot: launch additional probes at slight angles
       if (this.game.multiShotActive) {
         this.game.multiShotActive = false;
         this.onMultiShot();
@@ -1054,6 +1379,7 @@ class InputControlSystem extends createSystem({}) {
     pr.mesh.visible = true; pr.trailLine.visible = true; pr.mesh.position.copy(this.aimOrigin);
     pr.orbitCount = 0; pr.lastWellIdx = -1; pr.closestApproach = Infinity;
     pr.shielded = this.game.shieldActive; pr.targetsHitThisProbe = 0;
+    pr.slingshotNotified = false;
     for (const tp of pr.trailPositions) tp.copy(this.aimOrigin);
     this.game.probesUsed++; this.game.probesRemaining--; this.game.totalProbesLaunched++; this.game.chargeAmount = 0;
     this.audio.playLaunch(speed / LAUNCH_MAX_SPEED);
@@ -1082,15 +1408,23 @@ class GameUISystem extends createSystem({
   levelComplete: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/level-complete.json')] },
   dailyChallenge: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/daily-challenge.json')] },
   powerUpHud: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/power-up-hud.json')] },
+  levelSelect: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/level-select.json')] },
 }) {
   private game!: GameManager; private audio!: AudioManager;
+  private highScores!: HighScoreManager;
   private onStart!: (m: GameMode, l: number) => void;
   private onTheme!: (t: ThemeName) => void;
   private pe: Record<string, Entity> = {};
   private hudTimer = 0; private notifTimer = 0; private notifActive = false;
+  // R2: Achievement pagination
+  private achPage = 0;
+  private achPageSize = 10;
+  // R2: Level select pagination
+  private lvlPage = 0;
 
-  setRefs(refs: { game: GameManager; audio: AudioManager; onStart: (m: GameMode, l: number) => void; onTheme: (t: ThemeName) => void }) {
-    this.game = refs.game; this.audio = refs.audio; this.onStart = refs.onStart; this.onTheme = refs.onTheme;
+  setRefs(refs: { game: GameManager; audio: AudioManager; highScores: HighScoreManager; onStart: (m: GameMode, l: number) => void; onTheme: (t: ThemeName) => void }) {
+    this.game = refs.game; this.audio = refs.audio; this.highScores = refs.highScores;
+    this.onStart = refs.onStart; this.onTheme = refs.onTheme;
   }
 
   private doc(e: Entity) { return e.getValue(PanelDocument, 'document') as UIKitDocument | undefined; }
@@ -1098,11 +1432,22 @@ class GameUISystem extends createSystem({
   private btn(e: Entity, id: string, fn: () => void) { (this.doc(e)?.getElementById(id) as UIKit.Text | undefined)?.addEventListener('click', () => { this.audio.playClick(); fn(); }); }
 
   init() {
-    this.queries.mainMenu.subscribe('qualify', (e) => { this.pe['mainMenu'] = e; this.btn(e, 'btn-play', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-modes', () => this.showP('modeSelect')); this.btn(e, 'btn-achievements', () => this.showP('achievements')); this.btn(e, 'btn-stats', () => this.showP('stats')); this.btn(e, 'btn-settings', () => this.showP('settings')); this.btn(e, 'btn-how', () => this.showP('howToPlay')); });
+    this.queries.mainMenu.subscribe('qualify', (e) => {
+      this.pe['mainMenu'] = e;
+      this.btn(e, 'btn-play', () => this.onStart(this.game.mode, this.game.level));
+      this.btn(e, 'btn-modes', () => this.showP('modeSelect'));
+      this.btn(e, 'btn-achievements', () => { this.achPage = 0; this.showP('achievements'); });
+      this.btn(e, 'btn-stats', () => this.showP('stats'));
+      this.btn(e, 'btn-settings', () => this.showP('settings'));
+      this.btn(e, 'btn-how', () => this.showP('howToPlay'));
+    });
     this.queries.modeSelect.subscribe('qualify', (e) => {
       this.pe['modeSelect'] = e;
       const modes: [string, GameMode][] = [['btn-classic','classic'],['btn-slingshot','slingshot'],['btn-time-trial','time-trial'],['btn-precision','precision'],['btn-chaos','chaos'],['btn-zen','zen'],['btn-survival','survival'],['btn-daily','daily']];
-      for (const [b, m] of modes) this.btn(e, b, () => { if (m === 'daily') { this.showP('dailyChallenge'); } else { this.game.mode = m; this.game.level = 1; this.onStart(m, 1); } });
+      for (const [b, m] of modes) this.btn(e, b, () => {
+        if (m === 'daily') { this.showP('dailyChallenge'); }
+        else { this.game.mode = m; this.game.level = 1; this.lvlPage = 0; this.showP('levelSelect'); }
+      });
       this.btn(e, 'btn-back', () => this.showP('mainMenu'));
     });
     this.queries.howToPlay.subscribe('qualify', (e) => { this.pe['howToPlay'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
@@ -1116,7 +1461,16 @@ class GameUISystem extends createSystem({
       this.btn(e, 'btn-back', () => this.showP('mainMenu'));
     });
     this.queries.stats.subscribe('qualify', (e) => { this.pe['stats'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
-    this.queries.achievements.subscribe('qualify', (e) => { this.pe['achievements'] = e; this.btn(e, 'btn-back', () => this.showP('mainMenu')); });
+    this.queries.achievements.subscribe('qualify', (e) => {
+      this.pe['achievements'] = e;
+      this.btn(e, 'btn-back', () => this.showP('mainMenu'));
+      // R2: Pagination buttons
+      this.btn(e, 'btn-ach-prev', () => { if (this.achPage > 0) { this.achPage--; this.refreshAch(); } });
+      this.btn(e, 'btn-ach-next', () => {
+        const maxPage = Math.ceil(this.game.achievements.length / this.achPageSize) - 1;
+        if (this.achPage < maxPage) { this.achPage++; this.refreshAch(); }
+      });
+    });
     this.queries.pause.subscribe('qualify', (e) => { this.pe['pause'] = e; this.btn(e, 'btn-resume', () => { this.game.state = 'playing'; }); this.btn(e, 'btn-restart', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-quit', () => { this.game.state = 'menu'; }); });
     this.queries.gameOver.subscribe('qualify', (e) => { this.pe['gameOver'] = e; this.btn(e, 'btn-retry', () => this.onStart(this.game.mode, this.game.level)); this.btn(e, 'btn-next', () => { this.game.level++; this.onStart(this.game.mode, this.game.level); }); this.btn(e, 'btn-menu', () => { this.game.state = 'menu'; }); });
     this.queries.themeSelect.subscribe('qualify', (e) => {
@@ -1131,12 +1485,61 @@ class GameUISystem extends createSystem({
     this.queries.levelComplete.subscribe('qualify', (e) => { this.pe['levelComplete'] = e; this.btn(e, 'btn-next-lvl', () => { this.game.level++; this.onStart(this.game.mode, this.game.level); }); this.btn(e, 'btn-replay', () => this.onStart(this.game.mode, this.game.level)); });
     this.queries.dailyChallenge.subscribe('qualify', (e) => { this.pe['dailyChallenge'] = e; this.btn(e, 'btn-start-daily', () => { this.game.mode = 'daily'; this.game.level = 1; this.onStart('daily', 1); }); this.btn(e, 'btn-back', () => this.showP('modeSelect')); });
     this.queries.powerUpHud.subscribe('qualify', (e) => { this.pe['powerUpHud'] = e; });
+    // R2: Level select
+    this.queries.levelSelect.subscribe('qualify', (e) => {
+      this.pe['levelSelect'] = e;
+      for (let i = 1; i <= 10; i++) {
+        this.btn(e, `lvl-${i}`, () => {
+          const lvl = this.lvlPage * 10 + i;
+          this.game.level = lvl;
+          this.onStart(this.game.mode, lvl);
+        });
+      }
+      this.btn(e, 'btn-prev-page', () => { if (this.lvlPage > 0) { this.lvlPage--; this.refreshLvlSelect(); } });
+      this.btn(e, 'btn-next-page', () => { this.lvlPage++; this.refreshLvlSelect(); });
+      this.btn(e, 'btn-back', () => this.showP('modeSelect'));
+    });
   }
 
   private showP(name: string) {
-    const menus = ['mainMenu','modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'];
+    const menus = ['mainMenu','modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge','levelSelect'];
     for (const n of menus) { const p = this.pe[n]; if (p?.object3D) p.object3D.visible = (n === name); }
-    if (name === 'stats') this.refreshStats(); if (name === 'achievements') this.refreshAch();
+    if (name === 'stats') this.refreshStats();
+    if (name === 'achievements') this.refreshAch();
+    if (name === 'levelSelect') this.refreshLvlSelect();
+  }
+
+  // R2: Refresh level select display
+  private refreshLvlSelect() {
+    const e = this.pe['levelSelect']; if (!e) return;
+    const mn: Record<GameMode, string> = { classic:'Classic',slingshot:'Slingshot','time-trial':'Time Trial',precision:'Precision',chaos:'Chaos',zen:'Zen',survival:'Survival',daily:'Daily' };
+    this.st(e, 'mode-label', mn[this.game.mode]);
+    this.st(e, 'page-label', `${this.lvlPage + 1} / 5`);
+    const maxCompleted = this.highScores.getMaxLevel(this.game.mode);
+    for (let i = 1; i <= 10; i++) {
+      const lvl = this.lvlPage * 10 + i;
+      const data = this.highScores.get(this.game.mode, lvl);
+      const unlocked = lvl <= maxCompleted + 1;
+      let label = String(lvl);
+      if (data) {
+        const starStr = '*'.repeat(data.stars) + '-'.repeat(3 - data.stars);
+        label = `${lvl} ${starStr}`;
+      } else if (!unlocked) {
+        label = `${lvl} ...`;
+      } else {
+        label = `${lvl} ---`;
+      }
+      this.st(e, `lvl-${i}`, label);
+      const el = this.doc(e)?.getElementById(`lvl-${i}`) as UIKit.Text | undefined;
+      if (el) {
+        if (data && data.stars === 3) el.setProperties({ color: '#ffaa00' });
+        else if (data) el.setProperties({ color: '#00ff88' });
+        else if (unlocked) el.setProperties({ color: '#aaaacc' });
+        else el.setProperties({ color: '#444466' });
+      }
+    }
+    const totalStars = this.highScores.getTotalStars(this.game.mode);
+    this.st(e, 'best-info', `Total Stars: ${totalStars}`);
   }
 
   update(delta: number, _time: number) {
@@ -1144,15 +1547,14 @@ class GameUISystem extends createSystem({
     const isM = this.game.state === 'menu', isP = this.game.state === 'playing', isPa = this.game.state === 'paused';
     const isGO = this.game.state === 'game-over', isLC = this.game.state === 'level-complete';
     if (isM) {
-      const subs = ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'];
+      const subs = ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge','levelSelect'];
       if (!subs.some(n => this.pe[n]?.object3D?.visible)) sv('mainMenu', true);
     } else {
       sv('mainMenu', false);
-      ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge'].forEach(n => sv(n, false));
+      ['modeSelect','howToPlay','settings','stats','achievements','themeSelect','dailyChallenge','levelSelect'].forEach(n => sv(n, false));
     }
     sv('hud', isP || isPa); sv('pause', isPa); sv('gameOver', isGO); sv('levelComplete', isLC);
     sv('powerGauge', isP && this.game.charging);
-    // Power-up HUD - visible when a power-up is active
     sv('powerUpHud', isP && this.game.activePowerUp !== null);
     // HUD updates
     if (isP || isPa) {
@@ -1168,6 +1570,17 @@ class GameUISystem extends createSystem({
           this.st(h, 'mode', mn[this.game.mode]);
           if (this.game.combo > 1) { this.st(h, 'combo', `x${this.game.combo} COMBO`); (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 1 }); }
           else { (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 0 }); }
+          // R2: Slingshot notification in HUD
+          if (this.game.slingshotNotif) {
+            this.st(h, 'combo', 'SLINGSHOT!');
+            (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 1, color: '#ffaa44' });
+          } else if (this.game.combo <= 1) {
+            (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ color: '#ffaa00' });
+          }
+          // R2: Camera follow indicator
+          if (this.game.cameraFollow) {
+            this.st(h, 'mode', `${mn[this.game.mode]} [CAM]`);
+          }
         }
         // Power-up HUD
         if (this.game.activePowerUp) {
@@ -1193,7 +1606,7 @@ class GameUISystem extends createSystem({
     }
     // Power gauge
     if (this.game.charging) { const pg = this.pe['powerGauge']; if (pg) { this.st(pg, 'power-pct', `${Math.round(this.game.chargeAmount * 100)}%`); } }
-    // Game over / level complete
+    // Game over
     if (isGO) {
       const e = this.pe['gameOver']; if (e) {
         this.st(e, 'final-score', String(this.game.score)); this.st(e, 'final-targets', `${this.game.targetsCollected}/${this.game.targetsTotal}`);
@@ -1202,6 +1615,10 @@ class GameUISystem extends createSystem({
         const m = Math.floor(this.game.elapsedTime / 60); const s = Math.floor(this.game.elapsedTime % 60);
         this.st(e, 'final-time', `${m}:${s.toString().padStart(2, '0')}`); this.st(e, 'final-combo', `x${this.game.bestCombo}`);
         this.st(e, 'rating', this.game.getRating()); this.st(e, 'xp-gained', `+${Math.round(50 + this.game.getStars() * 25 + this.game.score / 10)} XP`);
+        // R2: High score display
+        if (this.game.newHighScore) {
+          this.st(e, 'rating', `${this.game.getRating()} NEW BEST!`);
+        }
       }
     }
     if (isLC) {
@@ -1209,6 +1626,10 @@ class GameUISystem extends createSystem({
         const stars = this.game.getStars();
         for (let i = 1; i <= 3; i++) { this.st(e, `star-${i}`, stars >= i ? '*' : '-'); (this.doc(e)?.getElementById(`star-${i}`) as UIKit.Text | undefined)?.setProperties({ color: stars >= i ? '#ffaa00' : '#444466' }); }
         this.st(e, 'score-text', `Score: ${this.game.score}`);
+        // R2: High score display
+        if (this.game.newHighScore) {
+          this.st(e, 'score-text', `Score: ${this.game.score} - NEW BEST!`);
+        }
       }
     }
     // Achievement notifications
@@ -1234,12 +1655,27 @@ class GameUISystem extends createSystem({
   private refreshAch() {
     const e = this.pe['achievements']; if (!e) return;
     this.st(e, 'progress', `${this.game.achievements.filter(a => a.unlocked).length} / ${this.game.achievements.length} Unlocked`);
-    for (let i = 0; i < 20 && i < this.game.achievements.length; i++) {
-      const a = this.game.achievements[i]; const pre = a.unlocked ? '[*]' : '[?]';
-      (this.doc(e)?.getElementById(`ach-${i}`) as UIKit.Text | undefined)?.setProperties({ text: `${pre} ${a.name} - ${a.desc}`, color: a.unlocked ? '#00ff88' : '#666688' });
+    // R2: Paginated display — show achPageSize achievements per page
+    const start = this.achPage * this.achPageSize;
+    const maxPage = Math.ceil(this.game.achievements.length / this.achPageSize) - 1;
+    for (let i = 0; i < 20; i++) {
+      const achIdx = start + i;
+      const el = this.doc(e)?.getElementById(`ach-${i}`) as UIKit.Text | undefined;
+      if (!el) continue;
+      if (achIdx < this.game.achievements.length) {
+        const a = this.game.achievements[achIdx];
+        const pre = a.unlocked ? '[*]' : '[?]';
+        el.setProperties({ text: `${pre} ${a.name} - ${a.desc}`, color: a.unlocked ? '#00ff88' : '#666688', opacity: 1 });
+      } else {
+        el.setProperties({ text: '', opacity: 0 });
+      }
     }
+    // R2: Page indicator
+    const pageEl = this.doc(e)?.getElementById('ach-page') as UIKit.Text | undefined;
+    if (pageEl) pageEl.setProperties({ text: `Page ${this.achPage + 1} / ${maxPage + 1}` });
   }
 }
+
 
 
 // ---- Main Entry ----
@@ -1262,15 +1698,14 @@ async function main() {
     },
   });
 
-  // Camera
   world.camera.position.set(0, 1.7, 0);
 
-  // Shared state
   const game = new GameManager();
   const audio = new AudioManager();
   const keys = new KeyState();
   const particles = new ParticlePool(world.scene);
   const shake = new ScreenShake();
+  const highScores = new HighScoreManager();
   let currentTheme = THEMES[game.theme];
 
   // Lighting
@@ -1285,12 +1720,18 @@ async function main() {
   // Scene objects
   const starField = createStarField(world.scene);
   const gridFloor = createGridFloor(world.scene, currentTheme.grid);
+  // R2: Atmospheric effects
+  const shootingStars = new ShootingStarManager(world.scene);
+  shootingStars.setThemeColor(currentTheme.nebula);
+  let nebulaClouds = createNebulaClouds(world.scene, currentTheme.nebula);
+  const ambientDust = createAmbientDust(world.scene);
 
   // Level data
   let wells: GravityWell[] = [];
   let targets: Target[] = [];
   let powerUps: PowerUp[] = [];
   let wormholes: WormholePortal[] = [];
+  let energyBeams: EnergyBeam[] = [];
   const probes: Probe[] = [];
   for (let i = 0; i < MAX_PROBES; i++) probes.push(createProbe(world.scene));
   const predLine = createPredictionLine(world.scene);
@@ -1298,11 +1739,12 @@ async function main() {
 
   // Start/restart level
   function startLevel(mode: GameMode, levelNum: number) {
-    // Clear old wells, targets, power-ups, wormholes
     for (const w of wells) world.scene.remove(w.group);
     for (const t of targets) world.scene.remove(t.group);
     for (const pu of powerUps) world.scene.remove(pu.group);
     for (const wh of wormholes) { world.scene.remove(wh.groupA); world.scene.remove(wh.groupB); }
+    // R2: Clean up energy beams
+    for (const beam of energyBeams) world.scene.remove(beam.line);
     for (const p of probes) { p.alive = false; p.mesh.visible = false; p.trailLine.visible = false; }
     predLine.visible = false; launchInd.visible = false;
 
@@ -1314,24 +1756,27 @@ async function main() {
     game.combo = 0; game.bestCombo = 0; game.lastCollectTime = 0;
     game.charging = false; game.chargeAmount = 0;
     game.slowMo = false; game.timeScale = 1;
-    // Reset power-up state
     game.activePowerUp = null; game.powerUpTimer = 0;
     game.shieldActive = false; game.magnetActive = false;
     game.multiShotActive = false; game.timeFreezeActive = false;
     game.magnetCollects = 0; game.freezeCollects = 0;
+    // R2: Reset camera follow and high score flag
+    game.cameraFollow = false; game.cameraFollowTarget = null;
+    game.newHighScore = false;
+    game.slingshotNotif = false; game.slingshotNotifTimer = 0;
 
     wells = lvl.wells.map(cfg => createGravityWell(world.scene, cfg));
     targets = lvl.targets.map(cfg => createTarget(world.scene, cfg));
     powerUps = lvl.powerUps.map(cfg => createPowerUp(world.scene, cfg));
     wormholes = lvl.wormholes.map(cfg => createWormhole(world.scene, cfg));
+    // R2: Create energy beams between nearby wells
+    energyBeams = createEnergyBeams(world.scene, wells);
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    // Update system refs with new level data
-    physicsSys.setRefs({ game, audio, particles, shake, probes, wells, targets, powerUps, wormholes, starTwinkle: starField.twinkle });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
-    // Start drone music on first play
     audio.startDrone();
   }
 
@@ -1340,12 +1785,25 @@ async function main() {
     if (game.probesRemaining < 2) return;
     const baseDir = new Vector3(0, 0, -1);
     if (world.camera) baseDir.applyQuaternion(world.camera.quaternion).normalize();
-    // Launch two additional probes at +-15 degrees
     const up = new Vector3(0, 1, 0);
-    for (const angle of [-0.26, 0.26]) { // ~15 degrees
+    for (const angle of [-0.26, 0.26]) {
       const dir = baseDir.clone().applyAxisAngle(up, angle).normalize();
       inputSys.launchExtra(dir);
     }
+  }
+
+  // R2: Record high scores on level end (called from a state watcher)
+  let lastState: GameState = 'menu';
+  function checkHighScoreRecording() {
+    if ((game.state === 'level-complete' || game.state === 'game-over') && lastState === 'playing') {
+      const accuracy = game.probesUsed > 0 ? game.targetsCollected / game.probesUsed : 0;
+      const isNew = highScores.record(game.mode, game.level, game.score, game.getStars(), accuracy);
+      if (isNew) {
+        game.newHighScore = true;
+        audio.playHighScore();
+      }
+    }
+    lastState = game.state;
   }
 
   // Theme switcher
@@ -1360,6 +1818,10 @@ async function main() {
         if (mat.color) mat.color.set(currentTheme.grid);
       }
     });
+    // R2: Update atmospheric colors
+    shootingStars.setThemeColor(currentTheme.nebula);
+    for (const cloud of nebulaClouds) world.scene.remove(cloud);
+    nebulaClouds = createNebulaClouds(world.scene, currentTheme.nebula);
   }
 
   // ---- Create Panel UI entities ----
@@ -1382,6 +1844,8 @@ async function main() {
     { name: 'levelComplete', config: './ui/level-complete.json', maxW: 0.55, maxH: 0.65, follow: true, offset: [0, -0.05, -0.85] },
     { name: 'dailyChallenge', config: './ui/daily-challenge.json', maxW: 0.55, maxH: 0.65, follow: true, offset: [0, -0.05, -0.85] },
     { name: 'powerUpHud', config: './ui/power-up-hud.json', maxW: 0.25, maxH: 0.05, follow: true, offset: [-0.3, 0.15, -0.6] },
+    // R2: Level select panel
+    { name: 'levelSelect', config: './ui/level-select.json', maxW: 0.55, maxH: 0.7, follow: true, offset: [0, -0.05, -0.85] },
   ];
 
   for (const pc of panelConfigs) {
@@ -1403,14 +1867,19 @@ async function main() {
   world.registerSystem(InputControlSystem);
   world.registerSystem(GameUISystem);
 
-  // Get system instances and set refs
   const physicsSys = world.getSystem(OrbitPhysicsSystem) as OrbitPhysicsSystem;
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, probes, wells, targets, powerUps, wormholes, starTwinkle: starField.twinkle });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, probes, wells, targets, powerUps, wormholes, energyBeams, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
-  uiSys.setRefs({ game, audio, onStart: startLevel, onTheme: applyTheme });
+  uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
+
+  // R2: State watcher for high score recording — poll every frame via a lightweight system
+  class StateWatcherSystem extends createSystem({}) {
+    update(_delta: number, _time: number) { checkHighScoreRecording(); }
+  }
+  world.registerSystem(StateWatcherSystem);
 }
 
 main();

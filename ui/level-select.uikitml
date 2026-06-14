@@ -1,0 +1,27 @@
+<Container backgroundColor="#0a0a2a" backgroundOpacity="0.92" flexDirection="column" alignItems="center" paddingTop="14" paddingBottom="14" paddingLeft="14" paddingRight="14" gap="6">
+  <Text fontSize="20" color="#00ffff" fontWeight="bold">Select Level</Text>
+  <Text id="mode-label" fontSize="13" color="#8888aa">Classic</Text>
+  <Container flexDirection="column" gap="4" width="100%">
+    <Container flexDirection="row" gap="4" justifyContent="center">
+      <Text id="lvl-1" fontSize="11" color="#aaaacc" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">1 ---</Text>
+      <Text id="lvl-2" fontSize="11" color="#aaaacc" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">2 ---</Text>
+      <Text id="lvl-3" fontSize="11" color="#aaaacc" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">3 ---</Text>
+      <Text id="lvl-4" fontSize="11" color="#aaaacc" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">4 ---</Text>
+      <Text id="lvl-5" fontSize="11" color="#aaaacc" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">5 ---</Text>
+    </Container>
+    <Container flexDirection="row" gap="4" justifyContent="center">
+      <Text id="lvl-6" fontSize="11" color="#666688" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.5">6 ---</Text>
+      <Text id="lvl-7" fontSize="11" color="#666688" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.5">7 ---</Text>
+      <Text id="lvl-8" fontSize="11" color="#666688" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.5">8 ---</Text>
+      <Text id="lvl-9" fontSize="11" color="#666688" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.5">9 ---</Text>
+      <Text id="lvl-10" fontSize="11" color="#666688" paddingTop="5" paddingBottom="5" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.5">10 ---</Text>
+    </Container>
+  </Container>
+  <Container flexDirection="row" gap="8" justifyContent="center" alignItems="center">
+    <Text id="btn-prev-page" fontSize="13" color="#00aaff" paddingTop="4" paddingBottom="4" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">Prev</Text>
+    <Text id="page-label" fontSize="11" color="#666688">1 / 5</Text>
+    <Text id="btn-next-page" fontSize="13" color="#00aaff" paddingTop="4" paddingBottom="4" paddingLeft="8" paddingRight="8" backgroundColor="#1a1a3a" backgroundOpacity="0.8">Next</Text>
+  </Container>
+  <Text id="best-info" fontSize="11" color="#ffaa00">Best: ---</Text>
+  <Text id="btn-back" fontSize="13" color="#ff4444" paddingTop="5" paddingBottom="5" paddingLeft="12" paddingRight="12" backgroundColor="#1a1a3a" backgroundOpacity="0.8">Back</Text>
+</Container>
