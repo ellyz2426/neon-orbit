@@ -54,6 +54,18 @@
       <text fontSize="13" color="#aaaacc">Asteroids Hit</text>
       <text name="asteroids-hit" fontSize="13" fontWeight="bold" color="#886644">0</text>
     </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="13" color="#aaaacc">Best Survival Wave</text>
+      <text name="best-wave" fontSize="13" fontWeight="bold" color="#ff44ff">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="13" color="#aaaacc">Power-Ups Used</text>
+      <text name="powerups-used" fontSize="13" fontWeight="bold" color="#ffaa00">0</text>
+    </container>
+    <container flexDirection="row" justifyContent="space-between" width="100%">
+      <text fontSize="13" color="#aaaacc">Wormhole Jumps</text>
+      <text name="wormhole-jumps" fontSize="13" fontWeight="bold" color="#8844ff">0</text>
+    </container>
   </container>
 
   <container flexDirection="row" justifyContent="space-between" width="100%" marginTop="10">

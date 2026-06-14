@@ -241,6 +241,7 @@ class GameSaveManager {
         levelsCompleted: game.levelsCompleted, tripleStarCount: game.tripleStarCount,
         slowMoCount: game.slowMoCount, totalPowerUpsCollected: game.totalPowerUpsCollected,
         wormholeUses: game.wormholeUses,
+        bestSurvivalWave: game.bestSurvivalWave,
         modesPlayed: Array.from(game.modesPlayed),
         achievements: game.achievements.filter(a => a.unlocked).map(a => a.id),
         theme: game.theme, showTrajectory: game.showTrajectory, trailLen: game.trailLen,
@@ -281,6 +282,7 @@ class GameSaveManager {
       if (typeof d.slowMoCount === 'number') game.slowMoCount = d.slowMoCount;
       if (typeof d.totalPowerUpsCollected === 'number') game.totalPowerUpsCollected = d.totalPowerUpsCollected;
       if (typeof d.wormholeUses === 'number') game.wormholeUses = d.wormholeUses;
+      if (typeof d.bestSurvivalWave === 'number') game.bestSurvivalWave = d.bestSurvivalWave;
       if (Array.isArray(d.modesPlayed)) game.modesPlayed = new Set(d.modesPlayed as GameMode[]);
       if (Array.isArray(d.achievements)) {
         for (const id of d.achievements as string[]) {
@@ -836,6 +838,7 @@ class GameManager {
   allTimeBestCombo = 0; planetsCrashedInto = 0; perfectLevels = 0; longestOrbit = 0; totalPlayTime = 0;
   dailyStreak = 0; xp = 0; playerLevel = 1; xpToNext = 100;
   wormholeUses = 0; lastDailyDate = '';
+  bestSurvivalWave = 0; // R3: Track best wave reached
   currentLevel: LevelConfig | null = null; wells: GravityWell[] = []; probes: Probe[] = [];
   targets: Target[] = []; powerUps: PowerUp[] = []; wormholes: WormholePortal[] = [];
   // R2: Camera follow
@@ -1804,6 +1807,12 @@ class OrbitPhysicsSystem extends createSystem({}) {
       w.ringMesh.rotation.z += dt * 0.3;
       // R2: Toggle gravity field lines visibility
       w.fieldLines.forEach((l, i) => { l.rotation.y += dt * (0.1 + i * 0.05); l.visible = this.game.showGravityLines; });
+      // R3: Rotate accretion disk (child Points objects spin with the well)
+      w.group.traverse((child) => {
+        if (child instanceof Points && child !== (this as any)._starPts) {
+          child.rotation.y += dt * (0.3 + w.mass * 0.1);
+        }
+      });
     }
     // Animate targets
     for (const t of this.targets) {
@@ -1851,6 +1860,9 @@ class OrbitPhysicsSystem extends createSystem({}) {
       if (this.game.mode === 'survival' && allDone && !noProbes) {
         this.game.survivalWave++;
         this.game.level = this.game.survivalWave;
+        if (this.game.survivalWave > this.game.bestSurvivalWave) {
+          this.game.bestSurvivalWave = this.game.survivalWave;
+        }
         this.game.survivalWaveBannerTimer = 2.5;
         this.game.survivalTargetsThisWave = 0;
         // Grant bonus probes per wave
@@ -2310,7 +2322,15 @@ class GameUISystem extends createSystem({
           this.st(h, 'time', `${m}:${s.toString().padStart(2, '0')}`); this.st(h, 'level', `Level ${this.game.level}`);
           const mn: Record<GameMode, string> = { classic:'Classic',slingshot:'Slingshot','time-trial':'Time Trial',precision:'Precision',chaos:'Chaos',zen:'Zen',survival:'Survival',daily:'Daily' };
           this.st(h, 'mode', mn[this.game.mode]);
-          if (this.game.combo > 1) { this.st(h, 'combo', `x${this.game.combo} COMBO`); (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 1 }); }
+          if (this.game.combo > 1) {
+            this.st(h, 'combo', `x${this.game.combo} COMBO`);
+            (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 1 });
+            // R3: Scale combo text with combo level
+            const comboScale = Math.min(14 + this.game.combo * 2, 28);
+            const comboColors = ['#ffff00', '#ffaa00', '#ff6600', '#ff0000', '#ff00ff'];
+            const colorIdx = Math.min(Math.floor((this.game.combo - 2) / 3), comboColors.length - 1);
+            (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ fontSize: comboScale, color: comboColors[colorIdx] });
+          }
           else { (this.doc(h)?.getElementById('combo') as UIKit.Text | undefined)?.setProperties({ opacity: 0 }); }
           // R2: Slingshot notification in HUD
           if (this.game.slingshotNotif) {
@@ -2453,10 +2473,17 @@ class GameUISystem extends createSystem({
     this.st(e, 'play-time', `${Math.round(this.game.totalPlayTime / 60)}m`);
     this.st(e, 'player-level', `Lv. ${this.game.playerLevel}`); this.st(e, 'player-title', this.game.getPlayerTitle());
     this.st(e, 'xp-text', `${this.game.xp} / ${this.game.xpToNext} XP`);
-    // R3: Show graze/orbit/asteroid stats
+    // R3: Show graze/orbit/asteroid/survival stats
     this.st(e, 'graze-count', String(this.game.grazeCount));
     this.st(e, 'orbit-bonus', String(this.game.orbitBonusCount));
     this.st(e, 'asteroids-hit', String(this.game.asteroidsHit));
+    this.st(e, 'best-wave', String(this.game.bestSurvivalWave));
+    this.st(e, 'powerups-used', String(this.game.totalPowerUpsCollected));
+    this.st(e, 'wormhole-jumps', String(this.game.wormholeUses));
+    // R3: XP bar width
+    const xpPct = Math.round((this.game.xp / this.game.xpToNext) * 100);
+    const xpBar = this.doc(e)?.getElementById('xp-bar') as UIKit.Container | undefined;
+    if (xpBar) xpBar.setProperties({ width: `${xpPct}%` });
   }
 
   // R3: Tutorial management
