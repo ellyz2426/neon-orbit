@@ -8,7 +8,7 @@
   "build_start_utc": "2026-06-14T07:00:00Z",
   "target_hours": 6,
   "total_build_minutes": 135,
-  "status": "building",
+  "status": "waiting_continuation",
   "rounds": [
     {
       "round": 2,
@@ -128,6 +128,36 @@
         "Deployed to GitHub Pages",
         "Source pushed to main branch"
       ]
+    },
+    {
+      "round": 3,
+      "sentinel": "7am",
+      "started_utc": "2026-06-14T13:56:00Z",
+      "ended_utc": "2026-06-14T14:07:18Z",
+      "minutes": 30,
+      "features": [
+        "Moving targets — orbit/bounce motion for targets at higher levels with visual cue rings",
+        "Survival wave spawning — targets replenish when cleared, escalating difficulty, bonus probes per wave",
+        "Best survival wave tracking with persistence",
+        "Danger-colored trajectory prediction — green/yellow/red based on proximity to wells",
+        "Combo visual escalation — ambient light pulses and intensifies with combo level",
+        "Combo text scaling — font size and color escalate with combo multiplier (yellow to red to purple)",
+        "Accretion disk particles around high-mass gravity wells with rotation animation",
+        "Gravitational distortion halos around massive wells (mass >= 3)",
+        "Zen mode infinite target respawning — targets reappear at random locations after collection",
+        "Zen mode now starts with 5 targets instead of 0",
+        "Procedural level names — each level gets a unique adjective+noun name (Stellar Crossing, Nebular Drift, etc.)",
+        "Expanded stats panel — best survival wave, power-ups used, wormhole jumps, animated XP bar",
+        "Survival wave display in HUD (shows Wave # instead of Level #)",
+        "4 new achievements (Unbreakable, Moving Target, Flawless Run, Unstoppable)",
+        "Moving target achievement check on collection",
+        "Accretion disk rotation animation scaled by well mass",
+        "Codebase grown to 2,858 lines TypeScript with 18 uikitml panels",
+        "Zero TypeScript errors confirmed",
+        "Production build successful (18 uikitml compiled)",
+        "Deployed to GitHub Pages (3 incremental deploys)",
+        "Source pushed to main branch (3 commits)"
+      ]
     }
   ],
   "features_completed": [
@@ -173,7 +203,18 @@
     "orbit-bonus-scoring",
     "53-achievements",
     "graze-orbit-persistence",
-    "expanded-tutorial-hints"
+    "expanded-tutorial-hints",
+    "moving-targets",
+    "survival-wave-spawning",
+    "best-survival-wave-tracking",
+    "danger-colored-trajectory",
+    "combo-visual-escalation",
+    "accretion-disk-particles",
+    "gravitational-distortion",
+    "zen-infinite-respawn",
+    "procedural-level-names",
+    "expanded-stats-panel",
+    "57-achievements"
   ],
-  "last_updated_utc": "2026-06-14T13:57:48Z"
+  "last_updated_utc": "2026-06-14T14:07:18Z"
 }
