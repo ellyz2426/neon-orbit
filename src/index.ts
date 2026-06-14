@@ -38,6 +38,17 @@ const GRAV_LINE_MAX_DIST = 8.0;
 const GRAV_LINE_COUNT = 3; // max lines shown from probe to nearest wells
 // R3: Level celebration constants
 const CELEBRATION_DURATION = 2.0;
+// R3: Asteroid constants
+const ASTEROID_MIN_RADIUS = 0.15;
+const ASTEROID_MAX_RADIUS = 0.4;
+const ASTEROID_ROTATION_SPEED = 0.5;
+// R3: Graze scoring
+const GRAZE_ZONE_MULT = 2.5; // graze zone = well.radius * this
+const GRAZE_BONUS_BASE = 50;
+const GRAZE_COOLDOWN = 1.0; // seconds between graze bonuses per well
+// R3: Orbit scoring
+const ORBIT_BONUS_BASE = 200;
+const ORBIT_BONUS_SCALE = 1.5; // multiplier per subsequent orbit
 // R3: Tutorial hints
 const TUTORIAL_HINTS = [
   'Hold trigger/SPACE to charge, release to launch your probe',
@@ -47,6 +58,9 @@ const TUTORIAL_HINTS = [
   'Gravity wells bend your path -- use them for slingshots!',
   'Power-ups give special abilities -- shield, magnet, multi-shot, time-freeze',
   'Press F to follow your probe with the camera',
+  'Pass close to wells for graze bonus points!',
+  'Watch out for asteroids -- they block your path',
+  'Orbiting a well earns orbit bonus points',
 ];
 // R2: Shooting star constants
 const SHOOTING_STAR_INTERVAL_MIN = 3;
@@ -98,6 +112,7 @@ interface LevelConfig {
   targets: { x: number; y: number; z: number; points: number }[];
   powerUps: { x: number; y: number; z: number; type: PowerUpType }[];
   wormholes: { ax: number; ay: number; az: number; bx: number; by: number; bz: number }[];
+  asteroids: { x: number; y: number; z: number; radius: number }[];
   probeLimit: number; timeLimit: number; name: string;
 }
 interface Achievement { id: string; name: string; desc: string; unlocked: boolean; }
@@ -109,8 +124,12 @@ interface EnergyBeam { line: Line; wellA: number; wellB: number; phase: number; 
 interface GravInteractionLine { line: Line; active: boolean; }
 // R3: Level celebration state
 interface CelebrationState { active: boolean; timer: number; threeStars: boolean; }
+// R3: Asteroid data
+interface Asteroid { mesh: Mesh; position: Vector3; radius: number; rotAxis: Vector3; rotSpeed: number; }
 // R3: Tutorial state
 interface TutorialState { hintIndex: number; shown: boolean; hintsCompleted: boolean; dismissTimer: number; }
+// R3: Graze tracking per-well
+interface GrazeTracker { wellIdx: number; lastGrazeTime: number; }
 
 // ---- Keyboard State (browser fallback) ----
 class KeyState {
@@ -224,6 +243,10 @@ class GameSaveManager {
         // R3: Tutorial and survival
         tutorialComplete: game.tutorialComplete,
         tutorialHintsShown: game.tutorialHintsShown,
+        // R3: Graze/orbit/asteroid stats
+        grazeCount: game.grazeCount, totalGrazeBonus: game.totalGrazeBonus,
+        orbitBonusCount: game.orbitBonusCount, asteroidsDodged: game.asteroidsDodged,
+        asteroidsHit: game.asteroidsHit,
       };
       localStorage.setItem(GameSaveManager.KEY, JSON.stringify(data));
     } catch (_e) { /* no-op */ }
@@ -267,6 +290,12 @@ class GameSaveManager {
       // R3: Tutorial state
       if (typeof d.tutorialComplete === 'boolean') game.tutorialComplete = d.tutorialComplete;
       if (typeof d.tutorialHintsShown === 'number') game.tutorialHintsShown = d.tutorialHintsShown;
+      // R3: Graze/orbit/asteroid stats
+      if (typeof d.grazeCount === 'number') game.grazeCount = d.grazeCount;
+      if (typeof d.totalGrazeBonus === 'number') game.totalGrazeBonus = d.totalGrazeBonus;
+      if (typeof d.orbitBonusCount === 'number') game.orbitBonusCount = d.orbitBonusCount;
+      if (typeof d.asteroidsDodged === 'number') game.asteroidsDodged = d.asteroidsDodged;
+      if (typeof d.asteroidsHit === 'number') game.asteroidsHit = d.asteroidsHit;
     } catch (_e) { /* no-op */ }
   }
 }
@@ -565,6 +594,50 @@ class AudioManager {
     o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.3);
   }
 
+  // R3: Asteroid collision sound
+  playAsteroidHit() {
+    const ctx = this.ensureCtx();
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(150, ctx.currentTime);
+    o.frequency.linearRampToValueAtTime(60, ctx.currentTime + 0.3);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.3);
+    // Crunch noise layer
+    const n = ctx.sampleRate * 0.1; const buf = ctx.createBuffer(1, n, ctx.sampleRate); const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3) * 0.3;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.1, ctx.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    src.connect(g2); g2.connect(this.sfxGain!); src.start();
+  }
+
+  // R3: Graze bonus sound (satisfying near-miss ping)
+  playGraze(proximity: number) {
+    const ctx = this.ensureCtx();
+    const freq = 600 + proximity * 600;
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.06 + proximity * 0.04, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    o.connect(g); g.connect(this.sfxGain!); o.start(); o.stop(ctx.currentTime + 0.15);
+    // Harmonic
+    const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 1.5;
+    const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.03, ctx.currentTime + 0.03);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    o2.connect(g2); g2.connect(this.sfxGain!); o2.start(ctx.currentTime + 0.03); o2.stop(ctx.currentTime + 0.12);
+  }
+
+  // R3: Orbit bonus sound
+  playOrbitBonus() {
+    const ctx = this.ensureCtx();
+    [392, 494, 587, 784].forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.08, ctx.currentTime + i * 0.07);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.07 + 0.3);
+      o.connect(g); g.connect(this.sfxGain!); o.start(ctx.currentTime + i * 0.07); o.stop(ctx.currentTime + i * 0.07 + 0.3);
+    });
+  }
+
   // R3: Theme-reactive audio tuning
   setThemeTuning(theme: ThemeName) {
     if (!this.droneOsc) return;
@@ -720,8 +793,21 @@ function generateLevel(levelNum: number, mode: GameMode): LevelConfig {
     });
   }
 
+  // R3: Asteroid obstacles — appear from level 3+, more in chaos/survival
+  const asteroids: LevelConfig['asteroids'] = [];
+  if (levelNum >= 3 && mode !== 'zen') {
+    let astCount = Math.min(Math.floor(levelNum / 2), 5);
+    if (mode === 'chaos') astCount = Math.min(levelNum, 8);
+    if (mode === 'survival') astCount = Math.min(2 + Math.floor(levelNum / 3), 6);
+    for (let i = 0; i < astCount; i++) {
+      const a = rng() * Math.PI * 2; const d = 2 + rng() * fieldSize * 0.6;
+      const radius = ASTEROID_MIN_RADIUS + rng() * (ASTEROID_MAX_RADIUS - ASTEROID_MIN_RADIUS);
+      asteroids.push({ x: Math.cos(a) * d, y: (rng() - 0.5) * 3, z: -3 - Math.sin(a) * d, radius });
+    }
+  }
+
   const names: Record<GameMode, string> = { classic: 'Classic', slingshot: 'Slingshot', 'time-trial': 'Time Trial', precision: 'Precision', chaos: 'Chaos', zen: 'Zen', survival: 'Survival', daily: 'Daily' };
-  return { wells, targets, powerUps, wormholes, probeLimit: pl, timeLimit: tl, name: `${names[mode]} ${mode === 'daily' ? '' : `Level ${levelNum}`}` };
+  return { wells, targets, powerUps, wormholes, asteroids, probeLimit: pl, timeLimit: tl, name: `${names[mode]} ${mode === 'daily' ? '' : `Level ${levelNum}`}` };
 }
 
 
@@ -799,10 +885,20 @@ class GameManager {
     { id: 'magnet-3', name: 'Magnetic Personality', desc: 'Attract 3 targets with magnet', unlocked: false },
     { id: 'multi-shot-1', name: 'Scatter Shot', desc: 'Launch a multi-shot volley', unlocked: false },
     { id: 'freeze-collect', name: 'Frozen in Time', desc: 'Collect 3 targets during time-freeze', unlocked: false },
+    { id: 'asteroid-dodge-10', name: 'Rock Dodger', desc: 'Dodge 10 asteroids', unlocked: false },
+    { id: 'asteroid-dodge-50', name: 'Asteroid Ace', desc: 'Dodge 50 asteroids', unlocked: false },
+    { id: 'graze-master', name: 'Graze Master', desc: 'Get 20 graze bonuses', unlocked: false },
+    { id: 'orbit-score', name: 'Orbital Scorer', desc: 'Score 5 orbit bonuses', unlocked: false },
+    { id: 'close-shave', name: 'Close Shave', desc: 'Graze 3 wells in a single probe', unlocked: false },
   ];
   modesPlayed = new Set<GameMode>(); slowMoCount = 0; tripleStarCount = 0; levelsCompleted = 0;
   pendingAchievements: Achievement[] = [];
   magnetCollects = 0; freezeCollects = 0;
+  // R3: Graze and orbit scoring
+  totalGrazeBonus = 0; grazeCount = 0; orbitBonusCount = 0;
+  grazeCooldowns: Map<number, number> = new Map();
+  // R3: Asteroid tracking
+  asteroidsDodged = 0; asteroidsHit = 0;
   // R3: Survival wave tracking
   survivalWave = 1; survivalTargetsThisWave = 0; survivalWaveBannerTimer = 0;
   // R3: Tutorial
@@ -872,6 +968,8 @@ class GameManager {
     ck('powerup-first', this.totalPowerUpsCollected >= 1); ck('powerup-10', this.totalPowerUpsCollected >= 10);
     ck('wormhole-1', this.wormholeUses >= 1); ck('wormhole-10', this.wormholeUses >= 10);
     ck('magnet-3', this.magnetCollects >= 3); ck('freeze-collect', this.freezeCollects >= 3);
+    ck('asteroid-dodge-10', this.asteroidsDodged >= 10); ck('asteroid-dodge-50', this.asteroidsDodged >= 50);
+    ck('graze-master', this.grazeCount >= 20); ck('orbit-score', this.orbitBonusCount >= 5);
   }
 }
 
@@ -1050,6 +1148,24 @@ function createPowerUp(scene: Object3D, cfg: LevelConfig['powerUps'][0]): PowerU
   return { group, position: new Vector3(cfg.x, cfg.y, cfg.z), type: cfg.type, collected: false, pulsePhase: Math.random() * Math.PI * 2, innerMesh, outerMesh };
 }
 
+// R3: Asteroid obstacle
+function createAsteroid(scene: Object3D, cfg: LevelConfig['asteroids'][0]): Asteroid {
+  const geo = new IcosahedronGeometry(cfg.radius, 0);
+  const posArr = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < posArr.length; i += 3) {
+    const jitter = 0.7 + Math.random() * 0.6;
+    posArr[i] *= jitter; posArr[i + 1] *= jitter; posArr[i + 2] *= jitter;
+  }
+  geo.attributes.position.needsUpdate = true; geo.computeVertexNormals();
+  const mat = new MeshStandardMaterial({ color: 0x665544, emissive: 0x221100, emissiveIntensity: 0.2, roughness: 0.9, metalness: 0.3 });
+  const mesh = new Mesh(geo, mat); mesh.position.set(cfg.x, cfg.y, cfg.z); scene.add(mesh);
+  const ring = new Mesh(new TorusGeometry(cfg.radius * 1.5, 0.008, 8, 24), new MeshBasicMaterial({ color: 0x886644, transparent: true, opacity: 0.2, blending: AdditiveBlending }));
+  ring.rotation.x = Math.PI * 0.5; mesh.add(ring);
+  return { mesh, position: new Vector3(cfg.x, cfg.y, cfg.z), radius: cfg.radius,
+    rotAxis: new Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+    rotSpeed: (0.3 + Math.random() * ASTEROID_ROTATION_SPEED) * (Math.random() > 0.5 ? 1 : -1) };
+}
+
 function createWormhole(scene: Object3D, cfg: LevelConfig['wormholes'][0]): WormholePortal {
   const makePortal = (x: number, y: number, z: number, color: number): { group: Group; ring: Mesh } => {
     const group = new Group(); group.position.set(x, y, z);
@@ -1158,6 +1274,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
   private targets: Target[] = []; private powerUps: PowerUp[] = []; private wormholes: WormholePortal[] = [];
   private energyBeams: EnergyBeam[] = [];
   private gravLines: GravInteractionLine[] = [];
+  private asteroids: Asteroid[] = [];
   private dustUpdate: ((delta: number) => void) | null = null;
   private accel = new Vector3();
   private starTwinkle: ((time: number) => void) | null = null;
@@ -1177,7 +1294,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     shootingStars: ShootingStarManager; scorePopups: ScorePopupPool;
     probes: Probe[]; wells: GravityWell[]; targets: Target[];
     powerUps: PowerUp[]; wormholes: WormholePortal[];
-    energyBeams: EnergyBeam[]; gravLines?: GravInteractionLine[];
+    energyBeams: EnergyBeam[]; gravLines?: GravInteractionLine[]; asteroids?: Asteroid[];
     dustUpdate?: (delta: number) => void;
     starTwinkle?: (time: number) => void;
     ambient?: AmbientLight; fog?: Fog;
@@ -1189,6 +1306,7 @@ class OrbitPhysicsSystem extends createSystem({}) {
     this.targets = refs.targets; this.powerUps = refs.powerUps; this.wormholes = refs.wormholes;
     this.energyBeams = refs.energyBeams;
     if (refs.gravLines) this.gravLines = refs.gravLines;
+    if (refs.asteroids) this.asteroids = refs.asteroids;
     if (refs.dustUpdate) this.dustUpdate = refs.dustUpdate;
     if (refs.starTwinkle) this.starTwinkle = refs.starTwinkle;
     if (refs.ambient) { this.ambient = refs.ambient; this.savedAmbientColor.copy(refs.ambient.color); }
@@ -1403,6 +1521,65 @@ class OrbitPhysicsSystem extends createSystem({}) {
         if (pu.collected) continue;
         if (pr.position.distanceTo(pu.position) < 0.25) this.collectPowerUp(pu, pr);
       }
+      // R3: Asteroid collision
+      for (const ast of this.asteroids) {
+        if (pr.position.distanceTo(ast.position) < ast.radius + PROBE_RADIUS) {
+          if (pr.shielded) {
+            pr.shielded = false; this.game.shieldActive = false;
+            if (this.game.activePowerUp === 'shield') { this.game.activePowerUp = null; this.game.powerUpTimer = 0; }
+            this.audio.playShieldBreak();
+            this.particles.emit(ast.position, new Color(0x886644), 15, 2, 0.5);
+            const normal = new Vector3().subVectors(pr.position, ast.position).normalize();
+            pr.velocity.reflect(normal).multiplyScalar(0.5);
+            pr.position.addScaledVector(normal, ast.radius + PROBE_RADIUS + 0.05 - pr.position.distanceTo(ast.position));
+            this.shake.trigger(0.2);
+          } else {
+            this.audio.playAsteroidHit();
+            this.particles.emit(ast.position, new Color(0x886644), 20, 3, 0.6);
+            this.game.asteroidsHit++; this.shake.trigger(0.4);
+            this.killProbe(pr); crashed = true; break;
+          }
+        }
+      }
+      if (crashed) continue;
+      // R3: Graze bonus scoring — near-miss reward for passing close to wells
+      for (let wi = 0; wi < this.wells.length; wi++) {
+        const w = this.wells[wi];
+        const dist = pr.position.distanceTo(w.position);
+        const grazeZone = w.radius * GRAZE_ZONE_MULT;
+        if (dist > w.radius && dist < grazeZone) {
+          const lastTime = this.game.grazeCooldowns.get(wi) ?? -999;
+          if (this.game.elapsedTime - lastTime > GRAZE_COOLDOWN) {
+            this.game.grazeCooldowns.set(wi, this.game.elapsedTime);
+            const proximity = 1 - (dist - w.radius) / (grazeZone - w.radius);
+            const bonus = Math.round(GRAZE_BONUS_BASE * (1 + proximity * 2));
+            this.game.score += bonus; this.game.totalScore += bonus;
+            this.game.grazeCount++; this.game.totalGrazeBonus += bonus;
+            this.audio.playGraze(proximity);
+            // Visual: small golden spark trail
+            this.particles.emitDirectional(pr.position, pr.velocity.clone().normalize(), new Color(0xffdd44), 6, 0.3, 2, 0.3);
+            this.scorePopups.spawn(pr.position, bonus, 1);
+            // Track graze per probe for close-shave achievement
+            if (!('_grazeWells' in pr)) (pr as any)._grazeWells = new Set();
+            (pr as any)._grazeWells.add(wi);
+            if ((pr as any)._grazeWells.size >= 3) {
+              const a = this.game.achievements.find(a => a.id === 'close-shave');
+              if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); }
+            }
+            this.game.asteroidsDodged++; // counts as "dodging" near the well
+          }
+        }
+      }
+      // R3: Orbit bonus scoring — reward for completing orbits around wells
+      if (pr.orbitCount > 0 && pr.orbitCount !== (pr as any)._lastBonusOrbit) {
+        (pr as any)._lastBonusOrbit = pr.orbitCount;
+        const bonus = Math.round(ORBIT_BONUS_BASE * Math.pow(ORBIT_BONUS_SCALE, pr.orbitCount - 1));
+        this.game.score += bonus; this.game.totalScore += bonus;
+        this.game.orbitBonusCount++;
+        this.audio.playOrbitBonus();
+        this.particles.emitRing(pr.position, new Color(0x88aaff), 12, 0.4, 0.5);
+        this.scorePopups.spawn(pr.position, bonus, pr.orbitCount);
+      }
       // Per-probe achievements
       if (pr.orbitCount >= 3) { const a = this.game.achievements.find(a => a.id === 'orbit-3'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
       if (pr.closestApproach < 0.5) { const a = this.game.achievements.find(a => a.id === 'graze-05'); if (a && !a.unlocked) { a.unlocked = true; this.game.pendingAchievements.push(a); } }
@@ -1539,6 +1716,11 @@ class OrbitPhysicsSystem extends createSystem({}) {
       const opacity = wh.active ? 0.5 + Math.sin(wh.phase) * 0.3 : 0.15;
       (wh.ringA.material as MeshBasicMaterial).opacity = opacity;
       (wh.ringB.material as MeshBasicMaterial).opacity = opacity;
+    }
+    // R3: Animate asteroids (tumble)
+    for (const ast of this.asteroids) {
+      const q = new Quaternion().setFromAxisAngle(ast.rotAxis, ast.rotSpeed * dt);
+      ast.mesh.quaternion.premultiply(q);
     }
     // Check level end
     if (this.game.mode !== 'zen') {
@@ -2123,6 +2305,10 @@ class GameUISystem extends createSystem({
     this.st(e, 'play-time', `${Math.round(this.game.totalPlayTime / 60)}m`);
     this.st(e, 'player-level', `Lv. ${this.game.playerLevel}`); this.st(e, 'player-title', this.game.getPlayerTitle());
     this.st(e, 'xp-text', `${this.game.xp} / ${this.game.xpToNext} XP`);
+    // R3: Show graze/orbit/asteroid stats
+    this.st(e, 'graze-count', String(this.game.grazeCount));
+    this.st(e, 'orbit-bonus', String(this.game.orbitBonusCount));
+    this.st(e, 'asteroids-hit', String(this.game.asteroidsHit));
   }
 
   // R3: Tutorial management
@@ -2238,6 +2424,7 @@ async function main() {
   let powerUps: PowerUp[] = [];
   let wormholes: WormholePortal[] = [];
   let energyBeams: EnergyBeam[] = [];
+  let asteroids: Asteroid[] = [];
   // R3: Gravity interaction lines
   const gravLines = createGravInteractionLines(world.scene, GRAV_LINE_COUNT);
   const probes: Probe[] = [];
@@ -2253,6 +2440,8 @@ async function main() {
     for (const wh of wormholes) { world.scene.remove(wh.groupA); world.scene.remove(wh.groupB); }
     // R2: Clean up energy beams
     for (const beam of energyBeams) world.scene.remove(beam.line);
+    // R3: Clean up asteroids
+    for (const ast of asteroids) world.scene.remove(ast.mesh);
     for (const p of probes) { p.alive = false; p.mesh.visible = false; p.trailLine.visible = false; }
     predLine.visible = false; launchInd.visible = false;
 
@@ -2277,17 +2466,21 @@ async function main() {
     game.survivalWaveBannerTimer = mode === 'survival' ? 2.5 : 0;
     game.dangerWarningTimer = 0; game.maxProximity = 0;
     game.celebration = { active: false, timer: 0, threeStars: false };
+    // R3: Reset graze cooldowns
+    game.grazeCooldowns.clear();
 
     wells = lvl.wells.map(cfg => createGravityWell(world.scene, cfg));
     targets = lvl.targets.map(cfg => createTarget(world.scene, cfg));
     powerUps = lvl.powerUps.map(cfg => createPowerUp(world.scene, cfg));
     wormholes = lvl.wormholes.map(cfg => createWormhole(world.scene, cfg));
+    // R3: Create asteroids
+    asteroids = lvl.asteroids.map(cfg => createAsteroid(world.scene, cfg));
     // R2: Create energy beams between nearby wells
     energyBeams = createEnergyBeams(world.scene, wells);
     game.wells = wells; game.targets = targets; game.probes = probes;
     game.powerUps = powerUps; game.wormholes = wormholes;
 
-    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+    physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
     inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
 
     audio.startDrone();
@@ -2390,7 +2583,7 @@ async function main() {
   const inputSys = world.getSystem(InputControlSystem) as InputControlSystem;
   const uiSys = world.getSystem(GameUISystem) as GameUISystem;
 
-  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
+  physicsSys.setRefs({ game, audio, particles, shake, shootingStars, scorePopups, probes, wells, targets, powerUps, wormholes, energyBeams, gravLines, asteroids, dustUpdate: ambientDust.update, starTwinkle: starField.twinkle, ambient, fog: world.scene.fog as Fog });
   inputSys.setRefs({ game, audio, keys, probes, wells, predLine, launchInd, onMultiShot: handleMultiShot });
   uiSys.setRefs({ game, audio, highScores, onStart: startLevel, onTheme: applyTheme });
 

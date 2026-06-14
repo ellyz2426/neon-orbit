@@ -14,7 +14,7 @@
           "fontsize": "32",
           "fontweight": "bold",
           "color": "#44aaff",
-          "marginbottom": "15"
+          "marginbottom": "12"
         },
         "dataUid": "uid-2"
       },
@@ -33,7 +33,7 @@
                   "Total Score"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-5"
@@ -46,7 +46,7 @@
                 ],
                 "properties": {
                   "name": "total-score",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#00ffff"
                 },
@@ -71,7 +71,7 @@
                   "Games Played"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-8"
@@ -84,7 +84,7 @@
                 ],
                 "properties": {
                   "name": "games-played",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#00ffff"
                 },
@@ -109,7 +109,7 @@
                   "Probes Launched"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-11"
@@ -122,7 +122,7 @@
                 ],
                 "properties": {
                   "name": "probes-launched",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ff8844"
                 },
@@ -147,7 +147,7 @@
                   "Targets Collected"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-14"
@@ -160,7 +160,7 @@
                 ],
                 "properties": {
                   "name": "targets-collected",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#00ff88"
                 },
@@ -185,7 +185,7 @@
                   "Accuracy"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-17"
@@ -198,7 +198,7 @@
                 ],
                 "properties": {
                   "name": "accuracy",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ffaa00"
                 },
@@ -223,7 +223,7 @@
                   "Best Combo"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-20"
@@ -236,7 +236,7 @@
                 ],
                 "properties": {
                   "name": "best-combo",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ffff00"
                 },
@@ -261,7 +261,7 @@
                   "Planets Crashed Into"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-23"
@@ -274,7 +274,7 @@
                 ],
                 "properties": {
                   "name": "crashes",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ff4444"
                 },
@@ -299,7 +299,7 @@
                   "Perfect Levels"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-26"
@@ -312,7 +312,7 @@
                 ],
                 "properties": {
                   "name": "perfect-levels",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ffaa00"
                 },
@@ -337,7 +337,7 @@
                   "Longest Orbit"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-29"
@@ -350,7 +350,7 @@
                 ],
                 "properties": {
                   "name": "longest-orbit",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#ff44ff"
                 },
@@ -375,7 +375,7 @@
                   "Total Play Time"
                 ],
                 "properties": {
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "color": "#aaaacc"
                 },
                 "dataUid": "uid-32"
@@ -388,7 +388,7 @@
                 ],
                 "properties": {
                   "name": "play-time",
-                  "fontsize": "14",
+                  "fontsize": "13",
                   "fontweight": "bold",
                   "color": "#8888ff"
                 },
@@ -401,11 +401,125 @@
               "width": "100%"
             },
             "dataUid": "uid-31"
+          },
+          {
+            "sourceTag": "container",
+            "type": "custom",
+            "children": [
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "Graze Bonuses"
+                ],
+                "properties": {
+                  "fontsize": "13",
+                  "color": "#aaaacc"
+                },
+                "dataUid": "uid-35"
+              },
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "0"
+                ],
+                "properties": {
+                  "name": "graze-count",
+                  "fontsize": "13",
+                  "fontweight": "bold",
+                  "color": "#ffdd44"
+                },
+                "dataUid": "uid-36"
+              }
+            ],
+            "properties": {
+              "flexdirection": "row",
+              "justifycontent": "space-between",
+              "width": "100%"
+            },
+            "dataUid": "uid-34"
+          },
+          {
+            "sourceTag": "container",
+            "type": "custom",
+            "children": [
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "Orbit Bonuses"
+                ],
+                "properties": {
+                  "fontsize": "13",
+                  "color": "#aaaacc"
+                },
+                "dataUid": "uid-38"
+              },
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "0"
+                ],
+                "properties": {
+                  "name": "orbit-bonus",
+                  "fontsize": "13",
+                  "fontweight": "bold",
+                  "color": "#88aaff"
+                },
+                "dataUid": "uid-39"
+              }
+            ],
+            "properties": {
+              "flexdirection": "row",
+              "justifycontent": "space-between",
+              "width": "100%"
+            },
+            "dataUid": "uid-37"
+          },
+          {
+            "sourceTag": "container",
+            "type": "custom",
+            "children": [
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "Asteroids Hit"
+                ],
+                "properties": {
+                  "fontsize": "13",
+                  "color": "#aaaacc"
+                },
+                "dataUid": "uid-41"
+              },
+              {
+                "sourceTag": "text",
+                "type": "custom",
+                "children": [
+                  "0"
+                ],
+                "properties": {
+                  "name": "asteroids-hit",
+                  "fontsize": "13",
+                  "fontweight": "bold",
+                  "color": "#886644"
+                },
+                "dataUid": "uid-42"
+              }
+            ],
+            "properties": {
+              "flexdirection": "row",
+              "justifycontent": "space-between",
+              "width": "100%"
+            },
+            "dataUid": "uid-40"
           }
         ],
         "properties": {
           "flexdirection": "column",
-          "gap": "8",
+          "gap": "6",
           "width": "100%"
         },
         "dataUid": "uid-3"
@@ -421,10 +535,10 @@
               "Player Level"
             ],
             "properties": {
-              "fontsize": "14",
+              "fontsize": "13",
               "color": "#aaaacc"
             },
-            "dataUid": "uid-35"
+            "dataUid": "uid-44"
           },
           {
             "sourceTag": "text",
@@ -434,20 +548,20 @@
             ],
             "properties": {
               "name": "player-level",
-              "fontsize": "18",
+              "fontsize": "16",
               "fontweight": "bold",
               "color": "#00ffff"
             },
-            "dataUid": "uid-36"
+            "dataUid": "uid-45"
           }
         ],
         "properties": {
           "flexdirection": "row",
           "justifycontent": "space-between",
           "width": "100%",
-          "margintop": "15"
+          "margintop": "10"
         },
-        "dataUid": "uid-34"
+        "dataUid": "uid-43"
       },
       {
         "sourceTag": "container",
@@ -460,10 +574,10 @@
               "Title"
             ],
             "properties": {
-              "fontsize": "14",
+              "fontsize": "13",
               "color": "#aaaacc"
             },
-            "dataUid": "uid-38"
+            "dataUid": "uid-47"
           },
           {
             "sourceTag": "text",
@@ -473,20 +587,20 @@
             ],
             "properties": {
               "name": "player-title",
-              "fontsize": "14",
+              "fontsize": "13",
               "fontweight": "bold",
               "color": "#ffaa00"
             },
-            "dataUid": "uid-39"
+            "dataUid": "uid-48"
           }
         ],
         "properties": {
           "flexdirection": "row",
           "justifycontent": "space-between",
           "width": "100%",
-          "margintop": "5"
+          "margintop": "4"
         },
-        "dataUid": "uid-37"
+        "dataUid": "uid-46"
       },
       {
         "sourceTag": "container",
@@ -499,21 +613,21 @@
             "properties": {
               "name": "xp-bar",
               "width": "0%",
-              "height": "8",
+              "height": "6",
               "backgroundcolor": "#00ffff",
-              "borderradius": "4"
+              "borderradius": "3"
             },
-            "dataUid": "uid-41"
+            "dataUid": "uid-50"
           }
         ],
         "properties": {
           "width": "100%",
-          "height": "8",
+          "height": "6",
           "backgroundcolor": "#222244",
-          "borderradius": "4",
-          "margintop": "8"
+          "borderradius": "3",
+          "margintop": "6"
         },
-        "dataUid": "uid-40"
+        "dataUid": "uid-49"
       },
       {
         "sourceTag": "text",
@@ -525,9 +639,9 @@
           "name": "xp-text",
           "fontsize": "10",
           "color": "#666688",
-          "margintop": "4"
+          "margintop": "3"
         },
-        "dataUid": "uid-42"
+        "dataUid": "uid-51"
       },
       {
         "sourceTag": "text",
@@ -537,19 +651,19 @@
         ],
         "properties": {
           "name": "btn-back",
-          "fontsize": "18",
+          "fontsize": "16",
           "color": "#aaaaaa",
           "backgroundcolor": "#222222",
-          "padding": "10",
+          "padding": "8",
           "borderradius": "8",
-          "width": "200",
+          "width": "180",
           "textalign": "center",
-          "margintop": "12",
+          "margintop": "10",
           "borderwidth": "1",
           "bordercolor": "#666666",
           "cursor": "pointer"
         },
-        "dataUid": "uid-43"
+        "dataUid": "uid-52"
       }
     ],
     "properties": {
@@ -557,7 +671,7 @@
       "alignitems": "center",
       "justifycontent": "center",
       "width": "500",
-      "height": "550",
+      "height": "650",
       "backgroundcolor": "#0a0a2e",
       "borderradius": "20",
       "padding": "25",
@@ -574,7 +688,7 @@
         "column": 0
       },
       "end": {
-        "line": 60,
+        "line": 72,
         "column": 12
       }
     },
@@ -594,7 +708,7 @@
         "column": 2
       },
       "end": {
-        "line": 44,
+        "line": 56,
         "column": 14
       }
     },
@@ -900,102 +1014,192 @@
     },
     "uid-34": {
       "start": {
-        "line": 46,
-        "column": 2
+        "line": 44,
+        "column": 4
       },
       "end": {
-        "line": 49,
-        "column": 14
+        "line": 47,
+        "column": 16
       }
     },
     "uid-35": {
       "start": {
-        "line": 47,
-        "column": 4
+        "line": 45,
+        "column": 6
       },
       "end": {
-        "line": 47,
-        "column": 59
+        "line": 45,
+        "column": 62
       }
     },
     "uid-36": {
       "start": {
-        "line": 48,
-        "column": 4
+        "line": 46,
+        "column": 6
       },
       "end": {
-        "line": 48,
-        "column": 90
+        "line": 46,
+        "column": 87
       }
     },
     "uid-37": {
       "start": {
-        "line": 50,
-        "column": 2
+        "line": 48,
+        "column": 4
       },
       "end": {
-        "line": 53,
-        "column": 14
+        "line": 51,
+        "column": 16
       }
     },
     "uid-38": {
       "start": {
-        "line": 51,
-        "column": 4
+        "line": 49,
+        "column": 6
       },
       "end": {
-        "line": 51,
-        "column": 52
+        "line": 49,
+        "column": 62
       }
     },
     "uid-39": {
       "start": {
-        "line": 52,
-        "column": 4
+        "line": 50,
+        "column": 6
       },
       "end": {
-        "line": 52,
-        "column": 90
+        "line": 50,
+        "column": 87
       }
     },
     "uid-40": {
       "start": {
-        "line": 54,
-        "column": 2
-      },
-      "end": {
-        "line": 56,
-        "column": 14
-      }
-    },
-    "uid-41": {
-      "start": {
-        "line": 55,
+        "line": 52,
         "column": 4
       },
       "end": {
         "line": 55,
-        "column": 106
+        "column": 16
+      }
+    },
+    "uid-41": {
+      "start": {
+        "line": 53,
+        "column": 6
+      },
+      "end": {
+        "line": 53,
+        "column": 62
       }
     },
     "uid-42": {
       "start": {
-        "line": 57,
-        "column": 2
+        "line": 54,
+        "column": 6
       },
       "end": {
-        "line": 57,
-        "column": 84
+        "line": 54,
+        "column": 89
       }
     },
     "uid-43": {
       "start": {
-        "line": 59,
+        "line": 58,
         "column": 2
       },
       "end": {
+        "line": 61,
+        "column": 14
+      }
+    },
+    "uid-44": {
+      "start": {
         "line": 59,
-        "column": 222
+        "column": 4
+      },
+      "end": {
+        "line": 59,
+        "column": 59
+      }
+    },
+    "uid-45": {
+      "start": {
+        "line": 60,
+        "column": 4
+      },
+      "end": {
+        "line": 60,
+        "column": 90
+      }
+    },
+    "uid-46": {
+      "start": {
+        "line": 62,
+        "column": 2
+      },
+      "end": {
+        "line": 65,
+        "column": 14
+      }
+    },
+    "uid-47": {
+      "start": {
+        "line": 63,
+        "column": 4
+      },
+      "end": {
+        "line": 63,
+        "column": 52
+      }
+    },
+    "uid-48": {
+      "start": {
+        "line": 64,
+        "column": 4
+      },
+      "end": {
+        "line": 64,
+        "column": 90
+      }
+    },
+    "uid-49": {
+      "start": {
+        "line": 66,
+        "column": 2
+      },
+      "end": {
+        "line": 68,
+        "column": 14
+      }
+    },
+    "uid-50": {
+      "start": {
+        "line": 67,
+        "column": 4
+      },
+      "end": {
+        "line": 67,
+        "column": 106
+      }
+    },
+    "uid-51": {
+      "start": {
+        "line": 69,
+        "column": 2
+      },
+      "end": {
+        "line": 69,
+        "column": 84
+      }
+    },
+    "uid-52": {
+      "start": {
+        "line": 71,
+        "column": 2
+      },
+      "end": {
+        "line": 71,
+        "column": 221
       }
     }
   }
